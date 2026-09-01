@@ -70,9 +70,10 @@ try {
   assert(savedProfile.createdAt && savedProfile.updatedAt, 'Profile timestamps were not persisted');
 
   await expectDuplicateError(
-    () => User.create({ email }),
+    () => User.create({ email, passwordHash: 'duplicate-test-hash' }),
     'Duplicate email was not rejected',
   );
+
   await expectDuplicateError(
     () => Profile.create({ userId }),
     'Duplicate profile userId was not rejected',

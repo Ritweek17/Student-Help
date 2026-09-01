@@ -20,6 +20,11 @@ const userSchema = new mongoose.Schema({
     enum: ['student', 'admin'],
     default: 'student',
   },
+  passwordHash: {
+    type: String,
+    required: true,
+    select: false,
+  },
   profileId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Profile',
@@ -30,6 +35,12 @@ const userSchema = new mongoose.Schema({
   },
 }, {
   timestamps: true,
+  toJSON: {
+    transform(_document, returnedObject) {
+      delete returnedObject.passwordHash;
+      return returnedObject;
+    },
+  },
 });
 
 export const User = mongoose.models.User || mongoose.model('User', userSchema);

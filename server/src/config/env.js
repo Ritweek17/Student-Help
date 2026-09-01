@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const requiredVariables = ['PORT', 'NODE_ENV', 'CLIENT_URL', 'MONGODB_URI'];
+const requiredVariables = ['PORT', 'NODE_ENV', 'CLIENT_URL', 'MONGODB_URI', 'JWT_SECRET', 'JWT_EXPIRES_IN'];
 const missingVariables = requiredVariables.filter((name) => !process.env[name]);
 
 if (missingVariables.length > 0) {
@@ -40,4 +40,6 @@ export const env = Object.freeze({
   nodeEnv: process.env.NODE_ENV,
   clientUrl: process.env.CLIENT_URL,
   mongodbUri: process.env.MONGODB_URI,
+  jwtSecret: process.env.JWT_SECRET,
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN,
 });

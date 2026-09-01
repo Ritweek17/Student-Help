@@ -1,6 +1,7 @@
 import { connectDatabase, disconnectDatabase } from '../src/config/db.js';
 import { Profile } from '../src/models/Profile.js';
 import { User } from '../src/models/User.js';
+import { hashPassword } from '../src/services/password.service.js';
 
 function assert(condition, message) {
   if (!condition) {
@@ -50,7 +51,7 @@ try {
     'Unique profile userId index was not created',
   );
 
-  const user = await User.create({ email });
+  const user = await User.create({ email, passwordHash: await hashPassword('temporary-model-verification-password') });
   userId = user._id;
   const profile = await Profile.create({
     userId,

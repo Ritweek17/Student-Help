@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 // Layouts
 import { AppLayout } from '../layouts/AppLayout';
 import { AuthLayout } from '../layouts/AuthLayout';
+import { ProtectedRoute } from './ProtectedRoute';
 
 // Public Pages
 import { LandingPage } from '../pages/Landing';
@@ -44,23 +45,25 @@ export function AppRoutes() {
       </Route>
 
       {/* Authenticated App Shell */}
-      <Route element={<AppLayout />}>
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/opportunities" element={<OpportunitiesPage />} />
-        <Route path="/opportunities/:id" element={<OpportunityDetailPage />} />
-        <Route path="/saved" element={<SavedPage />} />
-        <Route path="/applications" element={<ApplicationsPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/learning" element={<LearningPage />} />
-        <Route path="/learning/:id" element={<LearningDetailPage />} />
-        <Route path="/tracker" element={<TrackerPage />} />
-        <Route path="/todos" element={<TodosPage />} />
-        <Route path="/notes" element={<NotesPage />} />
-        <Route path="/goals" element={<GoalsPage />} />
-        <Route path="/calendar" element={<CalendarPage />} />
-        <Route path="/contests" element={<ContestsPage />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AppLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/opportunities" element={<OpportunitiesPage />} />
+          <Route path="/opportunities/:id" element={<OpportunityDetailPage />} />
+          <Route path="/saved" element={<SavedPage />} />
+          <Route path="/applications" element={<ApplicationsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/learning" element={<LearningPage />} />
+          <Route path="/learning/:id" element={<LearningDetailPage />} />
+          <Route path="/tracker" element={<TrackerPage />} />
+          <Route path="/todos" element={<TodosPage />} />
+          <Route path="/notes" element={<NotesPage />} />
+          <Route path="/goals" element={<GoalsPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/contests" element={<ContestsPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Route>
       </Route>
 
       {/* 404 & Fallback */}
@@ -69,3 +72,4 @@ export function AppRoutes() {
     </Routes>
   );
 }
+

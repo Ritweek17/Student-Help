@@ -1,20 +1,71 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, ArrowRight } from 'lucide-react';
+import { User, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { useAuth } from '../../context/AuthContext';
 
 export function SignupPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const navigate = useNavigate();
+  const { signup } = useAuth();
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Leads to multi-step onboarding flow in Phase 1 UI
-    navigate('/onboarding');
+    if (isSubmitting) return;
+
+    setError('');
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+
+    // Client-side validations
+    if (!trimmedName) {
+      setError('First name is required.');
+      return;
+    }
+
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    if (!password || password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    // Split name into firstName and lastName
+    const spaceIndex = trimmedName.indexOf(' ');
+    let firstName = trimmedName;
+    let lastName = '';
+
+    if (spaceIndex > 0) {
+      firstName = trimmedName.substring(0, spaceIndex);
+      lastName = trimmedName.substring(spaceIndex + 1).trim();
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      await signup({ email: trimmedEmail, password, firstName, lastName });
+      navigate('/onboarding');
+    } catch (err) {
+      setError(err.message || 'An error occurred during account creation.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -30,7 +81,7 @@ export function SignupPage() {
 
       <button
         type="button"
-        onClick={() => navigate('/onboarding')}
+        onClick={() => alert('Google OAuth will be supported in a future phase.')}
         className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-xs"
       >
         <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -49,6 +100,13 @@ export function SignupPage() {
         </span>
       </div>
 
+      {error && (
+        <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300 text-xs flex items-center gap-2.5">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-3.5">
         <Input
           label="Full Name"
@@ -57,6 +115,7 @@ export function SignupPage() {
           onChange={(e) => setName(e.target.value)}
           placeholder="Alex Chen"
           required
+          disabled={isSubmitting}
         />
 
         <Input
@@ -67,6 +126,7 @@ export function SignupPage() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="student@university.edu"
           required
+          disabled={isSubmitting}
         />
 
         <Input
@@ -75,8 +135,9 @@ export function SignupPage() {
           icon={Lock}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Create a secure password"
+          placeholder="Create a secure password (min. 8 chars)"
           required
+          disabled={isSubmitting}
         />
 
         <Input
@@ -87,10 +148,17 @@ export function SignupPage() {
           onChange={(e) => setConfirmPassword(e.target.value)}
           placeholder="Confirm password"
           required
+          disabled={isSubmitting}
         />
 
-        <Button type="submit" size="lg" className="w-full shadow-lg shadow-indigo-600/30 mt-2" icon={ArrowRight}>
-          Create Account & Continue
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full shadow-lg shadow-indigo-600/30 mt-2"
+          icon={ArrowRight}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? 'Creating account...' : 'Create Account & Continue'}
         </Button>
       </form>
 

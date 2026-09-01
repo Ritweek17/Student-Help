@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Compass,
   Bookmark,
@@ -20,9 +20,17 @@ import {
   Trophy
 } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
+import { useAuth } from '../../context/AuthContext';
 
 export function Sidebar({ onCloseMobile }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
 
   const navGroups = [
     {
@@ -73,6 +81,9 @@ export function Sidebar({ onCloseMobile }) {
       ]
     }
   ];
+
+  const userDisplayName = user?.email ? user.email.split('@')[0] : 'Alex Chen';
+  const userSubtext = user?.email || 'CS Undergrad';
 
   return (
     <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-full select-none text-slate-700 dark:text-slate-300">
@@ -142,21 +153,23 @@ export function Sidebar({ onCloseMobile }) {
       <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 shrink-0">
         <div className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-2.5 min-w-0">
-            <Avatar name="Alex Chen" size="sm" />
+            <Avatar name={userDisplayName} size="sm" />
             <div className="min-w-0">
-              <span className="text-xs font-semibold text-slate-900 dark:text-white block truncate">Alex Chen</span>
-              <span className="text-[10px] text-slate-500 block truncate">CS Undergrad</span>
+              <span className="text-xs font-semibold text-slate-900 dark:text-white block truncate">{userDisplayName}</span>
+              <span className="text-[10px] text-slate-500 block truncate">{userSubtext}</span>
             </div>
           </div>
-          <NavLink
-            to="/login"
+          <button
+            type="button"
+            onClick={handleLogout}
             className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Sign Out (Demo)"
+            title="Sign Out"
           >
             <LogOut className="w-4 h-4" />
-          </NavLink>
+          </button>
         </div>
       </div>
     </aside>
   );
 }
+

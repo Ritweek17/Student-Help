@@ -21,6 +21,7 @@ import { Progress } from '../../components/ui/Progress';
 import { OpportunityCard } from '../../components/cards/OpportunityCard';
 import { TargetItem } from '../../components/cards/TargetItem';
 import { LoadingState } from '../../components/ui/LoadingState';
+import { useAuth } from '../../context/AuthContext';
 import {
   fetchOpportunities,
   fetchDailyTasks,
@@ -34,6 +35,7 @@ import {
 } from '../../services/mockApi';
 
 export function DashboardPage() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -89,7 +91,7 @@ export function DashboardPage() {
   }
 
   const completedTasksCount = tasks.filter((t) => t.status === 'completed').length;
-  const mainGoal = goals[0] || { title: 'Become a Full Stack Developer', progress: 68 };
+  const greetingName = user?.email ? user.email.split('@')[0] : (profile?.personal?.fullName || 'Alex');
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -103,7 +105,7 @@ export function DashboardPage() {
             <Badge variant="success" size="sm">7-Day Streak 🔥</Badge>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold font-heading">
-            Good morning, {profile?.personal?.fullName || 'Alex'} 👋
+            Good morning, {greetingName} 👋
           </h1>
           <p className="text-xs sm:text-sm text-slate-300">
             You have <span className="font-semibold text-white">{todos.filter(t => t.status !== 'completed').length} active todos</span>, <span className="font-semibold text-white">2 learning tracks in progress</span>, and <span className="font-semibold text-white">1 interview scheduled</span>.

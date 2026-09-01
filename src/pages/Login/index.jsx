@@ -1,18 +1,43 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { useAuth } from '../../context/AuthContext';
 
 export function LoginPage() {
-  const [email, setEmail] = useState('alex.chen.demo@university.edu');
-  const [password, setPassword] = useState('demo123456');
-  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { login } = useAuth();
+
+  const getSafeReturnTo = () => {
+    const returnTo = searchParams.get('returnTo');
+    if (returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+      return returnTo;
+    }
+    return '/dashboard';
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Phase 1 demo navigation only
-    navigate('/dashboard');
+    if (isSubmitting) return;
+
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      await login({ email, password });
+      navigate(getSafeReturnTo(), { replace: true });
+    } catch (err) {
+      setError(err.message || 'Invalid email or password');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -29,7 +54,7 @@ export function LoginPage() {
       {/* Social login UI placeholder */}
       <button
         type="button"
-        onClick={() => navigate('/dashboard')}
+        onClick={() => alert('Google OAuth will be supported in a future phase.')}
         className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-xs"
       >
         <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -60,6 +85,13 @@ export function LoginPage() {
         </span>
       </div>
 
+      {error && (
+        <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300 text-xs flex items-center gap-2.5">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
           label="College / Student Email"
@@ -69,6 +101,7 @@ export function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="student@university.edu"
           required
+          disabled={isSubmitting}
         />
 
         <div>
@@ -85,11 +118,18 @@ export function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             required
+            disabled={isSubmitting}
           />
         </div>
 
-        <Button type="submit" size="lg" className="w-full shadow-lg shadow-indigo-600/30" icon={ArrowRight}>
-          Log In to Dashboard
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full shadow-lg shadow-indigo-600/30"
+          icon={ArrowRight}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? 'Signing in...' : 'Log In to Dashboard'}
         </Button>
       </form>
 

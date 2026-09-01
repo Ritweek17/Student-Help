@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const requiredVariables = ['PORT', 'NODE_ENV', 'CLIENT_URL'];
+const requiredVariables = ['PORT', 'NODE_ENV', 'CLIENT_URL', 'MONGODB_URI'];
 const missingVariables = requiredVariables.filter((name) => !process.env[name]);
 
 if (missingVariables.length > 0) {
@@ -25,8 +25,19 @@ try {
   throw new Error('CLIENT_URL must be a valid URL');
 }
 
+try {
+  const mongodbUrl = new URL(process.env.MONGODB_URI);
+
+  if (!['mongodb:', 'mongodb+srv:'].includes(mongodbUrl.protocol)) {
+    throw new Error('Invalid MongoDB protocol');
+  }
+} catch {
+  throw new Error('MONGODB_URI must be a valid MongoDB connection URI');
+}
+
 export const env = Object.freeze({
   port,
   nodeEnv: process.env.NODE_ENV,
   clientUrl: process.env.CLIENT_URL,
+  mongodbUri: process.env.MONGODB_URI,
 });

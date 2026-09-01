@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import * as opportunityService from '../services/opportunity.service.js';
 import { validateOpportunityQuery } from '../validators/opportunity.validator.js';
+import { validateOpportunityWrite } from '../validators/opportunity.write.validator.js';
 
 export async function listOpportunities(request, response, next) {
   try {
@@ -33,6 +34,92 @@ export async function getOpportunityById(request, response, next) {
     }
 
     const opportunity = await opportunityService.getOpportunityById(id);
+    if (!opportunity) {
+      return response.status(404).json({
+        success: false,
+        message: 'Opportunity not found',
+      });
+    }
+
+    return response.status(200).json({
+      success: true,
+      opportunity,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function createOpportunity(request, response, next) {
+  try {
+    const { error, value } = validateOpportunityWrite(request.body, false);
+    if (error) {
+      return response.status(400).json({
+        success: false,
+        message: error,
+      });
+    }
+
+    const adminUserId = request.auth.userId;
+    const opportunity = await opportunityService.createOpportunity(value, adminUserId);
+
+    return response.status(201).json({
+      success: true,
+      opportunity,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function updateOpportunity(request, response, next) {
+  try {
+    const { id } = request.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return response.status(400).json({
+        success: false,
+        message: 'Invalid opportunity ID',
+      });
+    }
+
+    const { error, value } = validateOpportunityWrite(request.body, true);
+    if (error) {
+      return response.status(400).json({
+        success: false,
+        message: error,
+      });
+    }
+
+    const adminUserId = request.auth.userId;
+    const opportunity = await opportunityService.updateOpportunity(id, value, adminUserId);
+    if (!opportunity) {
+      return response.status(404).json({
+        success: false,
+        message: 'Opportunity not found',
+      });
+    }
+
+    return response.status(200).json({
+      success: true,
+      opportunity,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function deleteOpportunity(request, response, next) {
+  try {
+    const { id } = request.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return response.status(400).json({
+        success: false,
+        message: 'Invalid opportunity ID',
+      });
+    }
+
+    const adminUserId = request.auth.userId;
+    const opportunity = await opportunityService.archiveOpportunity(id, adminUserId);
     if (!opportunity) {
       return response.status(404).json({
         success: false,

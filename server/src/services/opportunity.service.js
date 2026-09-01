@@ -120,3 +120,64 @@ export async function getOpportunityById(id) {
   if (!id) return null;
   return Opportunity.findOne({ _id: id, status: 'published' }).lean();
 }
+
+export async function createOpportunity(data, adminUserId) {
+  const payload = { ...data };
+
+  // Control verification metadata on server
+  if (payload.verified === true) {
+    payload.verifiedAt = new Date();
+    payload.verifiedBy = adminUserId;
+  } else {
+    payload.verified = false;
+    payload.verifiedAt = null;
+    payload.verifiedBy = null;
+  }
+
+  const newDoc = await Opportunity.create(payload);
+  return newDoc.toObject();
+}
+
+export async function updateOpportunity(id, data, adminUserId) {
+  if (!id) return null;
+
+  const existing = await Opportunity.findById(id);
+  if (!existing) return null;
+
+  const payload = { ...data };
+
+  // Control verification metadata on server
+  if (payload.verified !== undefined) {
+    if (payload.verified === true) {
+      payload.verifiedAt = new Date();
+      payload.verifiedBy = adminUserId;
+    } else {
+      payload.verified = false;
+      payload.verifiedAt = null;
+      payload.verifiedBy = null;
+    }
+  }
+
+  const updatedDoc = await Opportunity.findByIdAndUpdate(id, payload, {
+    returnDocument: 'after',
+    runValidators: true,
+  }).lean();
+
+  return updatedDoc;
+}
+
+export async function archiveOpportunity(id) {
+  if (!id) return null;
+
+  const existing = await Opportunity.findById(id);
+  if (!existing) return null;
+
+  // Soft delete: status = 'archived'
+  const archivedDoc = await Opportunity.findByIdAndUpdate(
+    id,
+    { status: 'archived' },
+    { returnDocument: 'after', runValidators: true },
+  ).lean();
+
+  return archivedDoc;
+}

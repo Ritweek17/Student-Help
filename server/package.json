@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "verify:models": "node scripts/verify-models.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

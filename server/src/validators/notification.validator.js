@@ -14,10 +14,15 @@ export function validateNotificationCreate(data = {}) {
     opportunityId,
     applicationId,
     calendarEventId,
+    notificationKey,
     userId,
     readAt,
     dismissedAt,
   } = data;
+
+  if (notificationKey !== undefined) {
+    return { error: 'notificationKey cannot be supplied in request body' };
+  }
 
   if (userId !== undefined) {
     return { error: 'userId cannot be supplied in request body' };

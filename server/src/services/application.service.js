@@ -5,6 +5,10 @@ import {
   syncApplicationCalendarEvents,
   handleApplicationDeletion,
 } from './calendarSync.service.js';
+import {
+  generateNotificationsForApplication,
+  generateNotificationsForApplicationStatusUpdate,
+} from './notificationGeneration.service.js';
 
 export async function createApplication(userId, opportunityId, data = {}) {
   // Check if opportunity exists and is published
@@ -67,6 +71,12 @@ export async function createApplication(userId, opportunityId, data = {}) {
       await syncApplicationCalendarEvents(userId, doc._id);
     } catch (syncErr) {
       console.error('Calendar sync failed on application create:', syncErr);
+    }
+
+    try {
+      await generateNotificationsForApplication(userId, doc._id);
+    } catch (notifErr) {
+      console.error('Notification generation failed on application create:', notifErr);
     }
 
     return {
@@ -240,6 +250,9 @@ export async function updateApplication(userId, opportunityId, type, data = {}) 
     };
   }
 
+  const oldStatus = appDoc.status;
+  const statusChanged = data.status !== undefined && data.status !== oldStatus;
+
   if (data.status !== undefined) appDoc.status = data.status;
   if (data.notes !== undefined) appDoc.notes = data.notes;
   if (data.externalUrl !== undefined) appDoc.externalUrl = data.externalUrl;
@@ -252,6 +265,19 @@ export async function updateApplication(userId, opportunityId, type, data = {}) 
     await syncApplicationCalendarEvents(userId, appDoc._id);
   } catch (syncErr) {
     console.error('Calendar sync failed on application update:', syncErr);
+  }
+
+  if (statusChanged) {
+    try {
+      await generateNotificationsForApplicationStatusUpdate(
+        userId,
+        appDoc._id,
+        appDoc.status,
+        oldStatus
+      );
+    } catch (notifErr) {
+      console.error('Notification generation failed on application update:', notifErr);
+    }
   }
 
   return {

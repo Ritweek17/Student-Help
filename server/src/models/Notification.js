@@ -67,6 +67,10 @@ const notificationSchema = new mongoose.Schema({
     ref: 'CalendarEvent',
     index: true,
   },
+  notificationKey: {
+    type: String,
+    trim: true,
+  },
 }, {
   timestamps: true,
 });
@@ -75,5 +79,12 @@ notificationSchema.index({ userId: 1, createdAt: -1 });
 notificationSchema.index({ userId: 1, read: 1 });
 notificationSchema.index({ userId: 1, dismissed: 1 });
 notificationSchema.index({ userId: 1, type: 1 });
+notificationSchema.index(
+  { userId: 1, notificationKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { notificationKey: { $type: 'string' } },
+  }
+);
 
 export const Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);

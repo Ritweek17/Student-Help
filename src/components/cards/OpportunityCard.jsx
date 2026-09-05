@@ -1,9 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Bookmark, MapPin, Calendar, Sparkles, Building2, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { Bookmark, MapPin, Calendar, Sparkles, Building2, ExternalLink, CheckCircle2, Loader2 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { useSavedOpportunities } from '../../context/SavedOpportunityContext';
 
 function formatTypeLabel(typeStr) {
   if (!typeStr) return 'Opportunity';
@@ -70,8 +71,10 @@ export function OpportunityCard({
   onToggleSave,
   isSavedState
 }) {
+  const savedContext = useSavedOpportunities();
   const oppId = opportunity._id || opportunity.id;
-  const isSaved = isSavedState !== undefined ? isSavedState : Boolean(opportunity.isSaved);
+  const isSaved = isSavedState !== undefined ? isSavedState : (savedContext ? savedContext.isSaved(oppId) : Boolean(opportunity.isSaved));
+  const saving = savedContext ? savedContext.isSaving(oppId) : false;
 
   const typeLabel = formatTypeLabel(opportunity.type || opportunity.category);
   const locationLabel = formatLocation(opportunity.location, opportunity.workMode);
@@ -79,6 +82,17 @@ export function OpportunityCard({
   const deadlineLabel = formatDeadline(opportunity.deadline);
 
   const skillsList = Array.isArray(opportunity.skills) ? opportunity.skills : [];
+
+  const handleSaveClick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (saving) return;
+    if (onToggleSave) {
+      onToggleSave(oppId);
+    } else if (savedContext) {
+      await savedContext.toggleSave(oppId);
+    }
+  };
 
   return (
     <Card hoverEffect padding="md" className="flex flex-col justify-between h-full group">
@@ -113,20 +127,27 @@ export function OpportunityCard({
             </div>
           </div>
           <button
-            onClick={(e) => {
-              e.preventDefault();
-              if (onToggleSave) onToggleSave(oppId);
-            }}
-            className={`p-2 rounded-lg border transition-all ${
-              isSaved
+            type="button"
+            disabled={saving}
+            onClick={handleSaveClick}
+            className={`p-2 rounded-lg border transition-all flex items-center gap-1 shrink-0 ${
+              saving
+                ? 'opacity-70 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-800'
+                : isSaved
                 ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800'
                 : 'border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
-            title={isSaved ? 'Remove from Saved' : 'Save Opportunity'}
+            title={saving ? 'Saving...' : isSaved ? 'Remove from Saved' : 'Save Opportunity'}
+            aria-label={saving ? 'Saving...' : isSaved ? 'Saved' : 'Save'}
           >
-            <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin text-indigo-600 dark:text-indigo-400" />
+            ) : (
+              <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
+            )}
           </button>
         </div>
+
 
         {/* Key Metadata Row */}
         <div className="flex flex-wrap items-center gap-2 mb-3 text-xs text-slate-600 dark:text-slate-400">

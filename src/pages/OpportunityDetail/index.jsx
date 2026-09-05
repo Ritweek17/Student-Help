@@ -9,7 +9,8 @@ import {
   ExternalLink,
   CheckCircle2,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -18,6 +19,7 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { Modal } from '../../components/ui/Modal';
 import { CalendarEventModal } from '../../components/calendar/CalendarEventModal';
 import { useAuth } from '../../context/AuthContext';
+import { useSavedOpportunities } from '../../context/SavedOpportunityContext';
 import * as opportunityApi from '../../services/opportunityApi';
 
 function formatTypeLabel(typeStr) {
@@ -76,16 +78,20 @@ export function OpportunityDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { token, logout } = useAuth();
+  const { isSaved: checkIsSaved, isSaving: checkIsSaving, toggleSave } = useSavedOpportunities();
 
   const [opportunity, setOpportunity] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isSaved, setIsSaved] = useState(false);
 
   // Modals
   const [applyModalOpen, setApplyModalOpen] = useState(false);
   const [calendarModalOpen, setCalendarModalOpen] = useState(false);
   const [eventToCalendar, setEventToCalendar] = useState(null);
+
+  const oppId = opportunity?._id || opportunity?.id || id;
+  const isSaved = checkIsSaved(oppId);
+  const saving = checkIsSaving(oppId);
 
   const fetchDetail = async (abortSignal) => {
     if (!token || !id) return;
@@ -209,16 +215,31 @@ export function OpportunityDetailPage() {
           {/* Action Buttons: Save, Add to Calendar, Apply */}
           <div className="flex items-center gap-2.5 flex-wrap shrink-0">
             <button
-              onClick={() => setIsSaved(!isSaved)}
-              className={`p-2.5 rounded-xl border transition-all ${
-                isSaved
-                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 border-indigo-200 dark:border-indigo-800'
-                  : 'border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+              type="button"
+              disabled={saving}
+              onClick={() => !saving && toggleSave(oppId)}
+              className={`px-4 py-2.5 rounded-xl border transition-all flex items-center gap-2 text-xs font-semibold ${
+                saving
+                  ? 'opacity-70 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-800'
+                  : isSaved
+                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800'
+                  : 'border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
-              title={isSaved ? 'Remove from Saved' : 'Save Role'}
+              title={saving ? 'Saving...' : isSaved ? 'Remove from Saved' : 'Save Opportunity'}
             >
-              <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-indigo-600 dark:text-indigo-400" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-current text-indigo-600 dark:text-indigo-400' : ''}`} />
+                  <span>{isSaved ? 'Saved' : 'Save'}</span>
+                </>
+              )}
             </button>
+
 
             {opportunity.deadline && (
               <Button

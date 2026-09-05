@@ -2,17 +2,21 @@ import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
+import { SavedOpportunityProvider } from './context/SavedOpportunityContext';
 import { AppRoutes } from './routes';
 
 export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
+        <SavedOpportunityProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </SavedOpportunityProvider>
       </AuthProvider>
     </ThemeProvider>
   );
 }
+
 

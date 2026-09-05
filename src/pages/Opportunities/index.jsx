@@ -67,8 +67,6 @@ export function OpportunitiesPage() {
   const [selectedSort, setSelectedSort] = useState('deadline_asc');
   const [page, setPage] = useState(1);
 
-  const [savedIds, setSavedIds] = useState([]);
-
   // Handle Search Debounce
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -125,12 +123,6 @@ export function OpportunitiesPage() {
     loadOpportunitiesData(controller.signal);
     return () => controller.abort();
   }, [token, debouncedSearch, selectedCategory, selectedWorkMode, selectedSort, page]);
-
-  const handleToggleSave = (oppId) => {
-    setSavedIds((prev) =>
-      prev.includes(oppId) ? prev.filter((id) => id !== oppId) : [...prev, oppId]
-    );
-  };
 
   const handleCategoryChange = (cat) => {
     setSelectedCategory(cat);
@@ -276,8 +268,6 @@ export function OpportunitiesPage() {
               <OpportunityCard
                 key={opp._id || opp.id}
                 opportunity={opp}
-                isSavedState={savedIds.includes(opp._id || opp.id)}
-                onToggleSave={handleToggleSave}
               />
             ))}
           </div>

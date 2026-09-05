@@ -24,6 +24,7 @@ export async function safeCreateNotification({
 }) {
   const existing = await Notification.findOne({ userId, notificationKey });
   if (existing) {
+    existing._wasCreated = false;
     return existing;
   }
 
@@ -40,11 +41,13 @@ export async function safeCreateNotification({
       read: false,
       dismissed: false,
     });
+    doc._wasCreated = true;
     return doc;
   } catch (error) {
     if (error.code === 11000) {
       const raceDoc = await Notification.findOne({ userId, notificationKey });
       if (raceDoc) {
+        raceDoc._wasCreated = false;
         return raceDoc;
       }
     }
@@ -249,4 +252,28 @@ export async function generateNotificationsForApplicationStatusUpdate(
   }
 
   return null;
+}
+
+/**
+ * Generate a calendar reminder notification for a due calendar event.
+ */
+export async function generateCalendarReminderNotification(userId, event) {
+  if (!event || !event.reminderMinutes || event.reminderMinutes <= 0 || event.status !== 'scheduled') {
+    return null;
+  }
+
+  const notificationKey = `calendar:${event._id}:reminder:${event.reminderMinutes}`;
+  const title = 'Calendar reminder';
+  const message = `${event.title} starts in ${event.reminderMinutes} minutes.`;
+
+  return safeCreateNotification({
+    userId,
+    notificationKey,
+    type: 'calendar_reminder',
+    title,
+    message,
+    opportunityId: event.opportunityId || undefined,
+    applicationId: event.applicationId || undefined,
+    calendarEventId: event._id,
+  });
 }

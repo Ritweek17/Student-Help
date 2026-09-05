@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "worker:reminders": "node src/workers/reminder.worker.js",
     "verify:models": "node scripts/verify-models.js",
     "verify:auth": "node scripts/verify-auth.js"
   },

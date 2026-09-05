@@ -15,11 +15,14 @@ import {
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { StatusBadge } from '../../components/ui/StatusBadge';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { Modal } from '../../components/ui/Modal';
 import { CalendarEventModal } from '../../components/calendar/CalendarEventModal';
 import { useAuth } from '../../context/AuthContext';
 import { useSavedOpportunities } from '../../context/SavedOpportunityContext';
+import { useApplications } from '../../context/ApplicationContext';
+import { getTrackingType, APPLICATION_STATUSES, REGISTRATION_STATUSES } from '../../utils/trackingTypeHelper';
 import * as opportunityApi from '../../services/opportunityApi';
 
 function formatTypeLabel(typeStr) {
@@ -79,6 +82,7 @@ export function OpportunityDetailPage() {
   const navigate = useNavigate();
   const { token, logout } = useAuth();
   const { isSaved: checkIsSaved, isSaving: checkIsSaving, toggleSave } = useSavedOpportunities();
+  const { getApplicationForOpportunity, isUpdating, createTracking, updateTracking } = useApplications();
 
   const [opportunity, setOpportunity] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -88,10 +92,24 @@ export function OpportunityDetailPage() {
   const [applyModalOpen, setApplyModalOpen] = useState(false);
   const [calendarModalOpen, setCalendarModalOpen] = useState(false);
   const [eventToCalendar, setEventToCalendar] = useState(null);
+  const [trackingModalOpen, setTrackingModalOpen] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [trackingNotes, setTrackingNotes] = useState('');
 
   const oppId = opportunity?._id || opportunity?.id || id;
   const isSaved = checkIsSaved(oppId);
   const saving = checkIsSaving(oppId);
+
+  const trackingType = getTrackingType(opportunity?.type);
+  const trackingRecord = getApplicationForOpportunity(oppId, trackingType);
+  const trackingUpdating = isUpdating(oppId, trackingType);
+
+  useEffect(() => {
+    if (trackingRecord) {
+      setSelectedStatus(trackingRecord.status || '');
+      setTrackingNotes(trackingRecord.notes || '');
+    }
+  }, [trackingRecord]);
 
   const fetchDetail = async (abortSignal) => {
     if (!token || !id) return;
@@ -212,7 +230,7 @@ export function OpportunityDetailPage() {
             </div>
           </div>
 
-          {/* Action Buttons: Save, Add to Calendar, Apply */}
+          {/* Action Buttons: Save, Add to Calendar, Tracking CTA, External Link */}
           <div className="flex items-center gap-2.5 flex-wrap shrink-0">
             <button
               type="button"
@@ -240,7 +258,6 @@ export function OpportunityDetailPage() {
               )}
             </button>
 
-
             {opportunity.deadline && (
               <Button
                 size="md"
@@ -252,6 +269,44 @@ export function OpportunityDetailPage() {
               </Button>
             )}
 
+            {/* CareerOS Application/Registration Tracking Action */}
+            {trackingUpdating ? (
+              <Button size="md" variant="outline" disabled icon={Loader2}>
+                Saving...
+              </Button>
+            ) : !trackingRecord ? (
+              <Button
+                size="md"
+                variant="outline"
+                icon={CheckCircle2}
+                onClick={async () => {
+                  await createTracking({
+                    opportunityId: oppId,
+                    type: trackingType,
+                    status: trackingType === 'application' ? 'applied' : 'registered',
+                  });
+                }}
+              >
+                {trackingType === 'application' ? 'Mark as Applied' : 'Mark as Registered'}
+              </Button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <StatusBadge status={trackingRecord.status} />
+                <Button
+                  size="md"
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedStatus(trackingRecord.status || '');
+                    setTrackingNotes(trackingRecord.notes || '');
+                    setTrackingModalOpen(true);
+                  }}
+                >
+                  Update Stage
+                </Button>
+              </div>
+            )}
+
+            {/* Official External Link Action */}
             {externalUrl ? (
               <a href={externalUrl} target="_blank" rel="noopener noreferrer">
                 <Button
@@ -259,7 +314,7 @@ export function OpportunityDetailPage() {
                   icon={ExternalLink}
                   className="shadow-lg shadow-indigo-600/30"
                 >
-                  Apply / Register
+                  {trackingType === 'registration' ? 'Register Externally' : 'Apply Externally'}
                 </Button>
               </a>
             ) : (
@@ -269,11 +324,12 @@ export function OpportunityDetailPage() {
                 icon={ExternalLink}
                 className="shadow-lg shadow-indigo-600/30"
               >
-                Apply / Register
+                {trackingType === 'registration' ? 'Register Externally' : 'Apply Externally'}
               </Button>
             )}
           </div>
         </div>
+
 
         {/* Info Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-100 dark:border-slate-800/80 text-xs">
@@ -472,6 +528,63 @@ export function OpportunityDetailPage() {
         }}
         initialData={eventToCalendar}
       />
+
+      {/* Update Tracking Modal */}
+      <Modal
+        isOpen={trackingModalOpen}
+        onClose={() => setTrackingModalOpen(false)}
+        title={`Update Tracking — ${opportunity?.title}`}
+      >
+        <div className="space-y-4 text-xs sm:text-sm">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+              Stage / Status
+            </label>
+            <select
+              value={selectedStatus || trackingRecord?.status || ''}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-medium text-xs sm:text-sm"
+            >
+              {(trackingType === 'application' ? APPLICATION_STATUSES : REGISTRATION_STATUSES).map((st) => (
+                <option key={st} value={st}>
+                  {st.charAt(0).toUpperCase() + st.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+              Personal Tracking Notes
+            </label>
+            <textarea
+              rows={3}
+              value={trackingNotes}
+              onChange={(e) => setTrackingNotes(e.target.value)}
+              placeholder="Add interview dates, application portal notes, etc..."
+              className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm"
+            />
+          </div>
+
+          <div className="pt-3 flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setTrackingModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                await updateTracking(oppId, trackingType, {
+                  status: selectedStatus || trackingRecord?.status,
+                  notes: trackingNotes,
+                });
+                setTrackingModalOpen(false);
+              }}
+            >
+              Save Stage
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
+

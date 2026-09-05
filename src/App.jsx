@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { SavedOpportunityProvider } from './context/SavedOpportunityContext';
+import { ApplicationProvider } from './context/ApplicationContext';
 import { AppRoutes } from './routes';
 
 export default function App() {
@@ -10,13 +11,16 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <SavedOpportunityProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
+          <ApplicationProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </ApplicationProvider>
         </SavedOpportunityProvider>
       </AuthProvider>
     </ThemeProvider>
   );
 }
+
 
 

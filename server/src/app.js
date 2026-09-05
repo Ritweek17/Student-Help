@@ -6,6 +6,7 @@ import { authRouter } from './routes/auth.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { opportunityRouter } from './routes/opportunity.routes.js';
 import { profileRouter } from './routes/profile.routes.js';
+import { savedOpportunityRouter } from './routes/savedOpportunity.routes.js';
 
 export const app = express();
 
@@ -18,6 +19,7 @@ app.use('/api', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/opportunities', opportunityRouter);
+app.use('/api', savedOpportunityRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

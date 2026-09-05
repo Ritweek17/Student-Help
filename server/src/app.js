@@ -9,6 +9,7 @@ import { profileRouter } from './routes/profile.routes.js';
 import { savedOpportunityRouter } from './routes/savedOpportunity.routes.js';
 import { applicationRouter } from './routes/application.routes.js';
 import { calendarRouter } from './routes/calendar.routes.js';
+import { notificationRouter } from './routes/notification.routes.js';
 
 export const app = express();
 
@@ -24,6 +25,7 @@ app.use('/api/opportunities', opportunityRouter);
 app.use('/api', savedOpportunityRouter);
 app.use('/api', applicationRouter);
 app.use('/api', calendarRouter);
+app.use('/api', notificationRouter);
 
 
 

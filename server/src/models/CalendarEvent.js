@@ -123,6 +123,11 @@ const calendarEventSchema = new mongoose.Schema({
     },
     default: 'manual',
   },
+  syncKey: {
+    type: String,
+    trim: true,
+    index: true,
+  },
 }, {
   timestamps: true,
 });
@@ -130,5 +135,9 @@ const calendarEventSchema = new mongoose.Schema({
 calendarEventSchema.index({ userId: 1, startAt: 1 });
 calendarEventSchema.index({ userId: 1, opportunityId: 1 });
 calendarEventSchema.index({ userId: 1, applicationId: 1 });
+calendarEventSchema.index(
+  { userId: 1, syncKey: 1 },
+  { unique: true, partialFilterExpression: { syncKey: { $type: 'string' } } }
+);
 
 export const CalendarEvent = mongoose.models.CalendarEvent || mongoose.model('CalendarEvent', calendarEventSchema);

@@ -1,6 +1,10 @@
 import mongoose from 'mongoose';
 import { Application } from '../models/Application.js';
 import { Opportunity } from '../models/Opportunity.js';
+import {
+  syncApplicationCalendarEvents,
+  handleApplicationDeletion,
+} from './calendarSync.service.js';
 
 export async function createApplication(userId, opportunityId, data = {}) {
   // Check if opportunity exists and is published
@@ -58,11 +62,18 @@ export async function createApplication(userId, opportunityId, data = {}) {
       registeredAt: finalRegisteredAt,
     });
 
+    const appObj = doc.toObject();
+    try {
+      await syncApplicationCalendarEvents(userId, doc._id);
+    } catch (syncErr) {
+      console.error('Calendar sync failed on application create:', syncErr);
+    }
+
     return {
       status: 201,
       data: {
         success: true,
-        application: doc.toObject(),
+        application: appObj,
       },
     };
   } catch (error) {
@@ -237,6 +248,12 @@ export async function updateApplication(userId, opportunityId, type, data = {}) 
 
   await appDoc.save();
 
+  try {
+    await syncApplicationCalendarEvents(userId, appDoc._id);
+  } catch (syncErr) {
+    console.error('Calendar sync failed on application update:', syncErr);
+  }
+
   return {
     status: 200,
     data: {
@@ -247,11 +264,23 @@ export async function updateApplication(userId, opportunityId, type, data = {}) 
 }
 
 export async function deleteApplication(userId, opportunityId, type) {
-  await Application.deleteOne({
+  const appDoc = await Application.findOne({
     userId,
     opportunityId,
     type,
-  });
+  }).lean();
+
+  if (appDoc) {
+    try {
+      await handleApplicationDeletion(userId, appDoc._id);
+    } catch (syncErr) {
+      console.error('Calendar sync failed on application delete:', syncErr);
+    }
+
+    await Application.deleteOne({
+      _id: appDoc._id,
+    });
+  }
 
   return {
     status: 200,

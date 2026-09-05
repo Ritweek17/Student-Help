@@ -91,13 +91,12 @@ const applicationSchema = new mongoose.Schema({
 applicationSchema.index({ userId: 1, opportunityId: 1, type: 1 }, { unique: true });
 
 // Schema validation ensuring status matches type
-applicationSchema.pre('validate', function (next) {
+applicationSchema.pre('validate', function () {
   if (this.type === 'application' && !APPLICATION_STATUSES.includes(this.status)) {
     this.invalidate('status', `Status '${this.status}' is not valid for type 'application'`);
   } else if (this.type === 'registration' && !REGISTRATION_STATUSES.includes(this.status)) {
     this.invalidate('status', `Status '${this.status}' is not valid for type 'registration'`);
   }
-  next();
 });
 
 export const Application = mongoose.models.Application || mongoose.model('Application', applicationSchema);

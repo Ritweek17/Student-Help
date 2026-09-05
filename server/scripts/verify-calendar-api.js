@@ -42,6 +42,12 @@ let appB1;
 
 try {
   await connectDatabase();
+  try {
+    await CalendarEvent.collection.dropIndex('userId_1_syncKey_1');
+  } catch (e) {
+    // Index may not exist or already dropped
+  }
+  await CalendarEvent.syncIndexes();
 
   // Create temporary User A and User B
   userA = await User.create({

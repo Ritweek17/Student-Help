@@ -3,10 +3,12 @@ import { Link, useLocation } from 'react-router-dom';
 import { Search, Bell, Sun, Moon, Menu, Command, Calendar } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useCommand } from '../../context/CommandContext';
+import { useNotifications } from '../../context/NotificationContext';
 
 export function TopHeader({ onOpenMobile }) {
   const { theme, setTheme } = useTheme();
   const { openCommand } = useCommand();
+  const { unreadCount } = useNotifications();
   const location = useLocation();
 
   const getPageTitle = (path) => {
@@ -47,6 +49,9 @@ export function TopHeader({ onOpenMobile }) {
   };
 
   const currentTitle = getPageTitle(location.pathname);
+  const bellAriaLabel = unreadCount > 0
+    ? `Notifications, ${unreadCount} unread`
+    : 'Notifications, no unread notifications';
 
   return (
     <header className="h-16 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 transition-colors">
@@ -106,14 +111,19 @@ export function TopHeader({ onOpenMobile }) {
           {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
         </button>
 
-        {/* Notification bell badge */}
+        {/* Notification bell with real unread badge */}
         <Link
           to="/notifications"
           className="relative p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          aria-label={bellAriaLabel}
           title="Notifications"
         >
           <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-700 dark:bg-blue-400 rounded-full ring-2 ring-white dark:ring-slate-900" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-bold text-white bg-blue-700 dark:bg-blue-500 rounded-full ring-2 ring-white dark:ring-slate-900 leading-none">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </Link>
       </div>
     </header>

@@ -1,4 +1,4 @@
-import { OPPORTUNITY_TYPES, WORK_MODES } from '../models/Opportunity.js';
+import { OPPORTUNITY_TYPES, WORK_MODES, OPPORTUNITY_STATUSES } from '../models/Opportunity.js';
 
 export const ALLOWED_SORTS = [
   'deadline_asc',
@@ -8,6 +8,9 @@ export const ALLOWED_SORTS = [
   'newest',
   'oldest',
   'featured',
+  'quality',
+  'relevance',
+  'freshness',
 ];
 
 export function validateOpportunityQuery(rawQuery = {}) {
@@ -174,6 +177,17 @@ export function validateOpportunityQuery(rawQuery = {}) {
     }
   } else {
     sanitized.sort = 'deadline_asc';
+  }
+
+  // 13. Status filter (supports individual status or 'all')
+  if (rawQuery.status !== undefined && rawQuery.status !== null && rawQuery.status !== '') {
+    const st = String(rawQuery.status).trim().toLowerCase();
+    const allowedStatuses = [...OPPORTUNITY_STATUSES, 'all'];
+    if (!allowedStatuses.includes(st)) {
+      errors.push(`Invalid status filter. Allowed: ${allowedStatuses.join(', ')}`);
+    } else {
+      sanitized.status = st;
+    }
   }
 
   if (errors.length > 0) {

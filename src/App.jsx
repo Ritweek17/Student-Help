@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { SavedOpportunityProvider } from './context/SavedOpportunityContext';
 import { ApplicationProvider } from './context/ApplicationContext';
+import { CalendarProvider } from './context/CalendarContext';
 import { AppRoutes } from './routes';
 
 export default function App() {
@@ -14,9 +15,11 @@ export default function App() {
         <NotificationProvider>
           <SavedOpportunityProvider>
             <ApplicationProvider>
-              <BrowserRouter>
-                <AppRoutes />
-              </BrowserRouter>
+              <CalendarProvider>
+                <BrowserRouter>
+                  <AppRoutes />
+                </BrowserRouter>
+              </CalendarProvider>
             </ApplicationProvider>
           </SavedOpportunityProvider>
         </NotificationProvider>

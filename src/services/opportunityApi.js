@@ -34,6 +34,11 @@ async function handleResponse(response, defaultErrorMessage) {
     throw new OpportunityApiError(message, 401, 'UNAUTHORIZED');
   }
 
+  if (status === 403) {
+    message = data?.message || 'Access denied. Administrator privileges required.';
+    throw new OpportunityApiError(message, 403, 'FORBIDDEN');
+  }
+
   if (status === 404) {
     message = 'Opportunity not found.';
     throw new OpportunityApiError(message, 404, 'NOT_FOUND');
@@ -128,3 +133,89 @@ export async function getOpportunityById(id, token, signal) {
     throw new OpportunityApiError('Unable to load this opportunity. Please try again.', 0, 'NETWORK_ERROR');
   }
 }
+
+export async function createOpportunity(opportunityData, token, signal) {
+  if (!token) {
+    throw new OpportunityApiError('Authentication token is required', 401, 'UNAUTHORIZED');
+  }
+
+  const url = `${API_BASE_URL}/api/opportunities`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(opportunityData),
+      signal,
+    });
+
+    return await handleResponse(response, 'Failed to create opportunity.');
+  } catch (error) {
+    if (error.name === 'AbortError') throw error;
+    if (error instanceof OpportunityApiError) throw error;
+    throw new OpportunityApiError('Failed to create opportunity.', 0, 'NETWORK_ERROR');
+  }
+}
+
+export async function updateOpportunity(id, updateData, token, signal) {
+  if (!token) {
+    throw new OpportunityApiError('Authentication token is required', 401, 'UNAUTHORIZED');
+  }
+
+  if (!id) {
+    throw new OpportunityApiError('Opportunity ID is required', 400, 'BAD_REQUEST');
+  }
+
+  const url = `${API_BASE_URL}/api/opportunities/${id}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updateData),
+      signal,
+    });
+
+    return await handleResponse(response, 'Failed to update opportunity.');
+  } catch (error) {
+    if (error.name === 'AbortError') throw error;
+    if (error instanceof OpportunityApiError) throw error;
+    throw new OpportunityApiError('Failed to update opportunity.', 0, 'NETWORK_ERROR');
+  }
+}
+
+export async function deleteOpportunity(id, token, signal) {
+  if (!token) {
+    throw new OpportunityApiError('Authentication token is required', 401, 'UNAUTHORIZED');
+  }
+
+  if (!id) {
+    throw new OpportunityApiError('Opportunity ID is required', 400, 'BAD_REQUEST');
+  }
+
+  const url = `${API_BASE_URL}/api/opportunities/${id}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      signal,
+    });
+
+    return await handleResponse(response, 'Failed to archive opportunity.');
+  } catch (error) {
+    if (error.name === 'AbortError') throw error;
+    if (error instanceof OpportunityApiError) throw error;
+    throw new OpportunityApiError('Failed to archive opportunity.', 0, 'NETWORK_ERROR');
+  }
+}
+

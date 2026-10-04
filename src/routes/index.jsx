@@ -4,7 +4,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 // Layouts
 import { AppLayout } from '../layouts/AppLayout';
 import { AuthLayout } from '../layouts/AuthLayout';
+import { AdminLayout } from '../layouts/AdminLayout';
 import { ProtectedRoute } from './ProtectedRoute';
+import { AdminRoute } from './AdminRoute';
 
 // Public Pages
 import { LandingPage } from '../pages/Landing';
@@ -30,6 +32,10 @@ import { ContestsPage } from '../pages/Contests';
 import { NotificationsPage } from '../pages/Notifications';
 import { SettingsPage } from '../pages/Settings';
 import { NotFoundPage } from '../pages/NotFound';
+import { AdminOverviewPage } from '../pages/Admin/AdminOverviewPage';
+import { AdminOpportunitiesPage } from '../pages/Admin/AdminOpportunitiesPage';
+import { AdminSourcesPage } from '../pages/Admin/AdminSourcesPage';
+import { AdminIngestionRunsPage } from '../pages/Admin/AdminIngestionRunsPage';
 
 export function AppRoutes() {
   return (
@@ -63,6 +69,16 @@ export function AppRoutes() {
           <Route path="/contests" element={<ContestsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+        </Route>
+      </Route>
+
+      {/* Protected Admin Shell */}
+      <Route element={<AdminRoute />}>
+        <Route element={<AdminLayout />}>
+          <Route path="/admin" element={<AdminOverviewPage />} />
+          <Route path="/admin/opportunities" element={<AdminOpportunitiesPage />} />
+          <Route path="/admin/sources" element={<AdminSourcesPage />} />
+          <Route path="/admin/ingestion-runs" element={<AdminIngestionRunsPage />} />
         </Route>
       </Route>
 

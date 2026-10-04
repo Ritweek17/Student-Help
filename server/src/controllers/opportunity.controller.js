@@ -33,7 +33,8 @@ export async function getOpportunityById(request, response, next) {
       });
     }
 
-    const opportunity = await opportunityService.getOpportunityById(id);
+    const isAdmin = request.auth?.role === 'admin';
+    const opportunity = await opportunityService.getOpportunityById(id, isAdmin);
     if (!opportunity) {
       return response.status(404).json({
         success: false,

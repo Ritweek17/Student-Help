@@ -7,8 +7,21 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "worker:reminders": "node src/workers/reminder.worker.js",
+    "worker:ingestion": "node src/workers/ingestion.worker.js",
     "verify:models": "node scripts/verify-models.js",
-    "verify:auth": "node scripts/verify-auth.js"
+    "verify:auth": "node scripts/verify-auth.js",
+    "verify:tracker": "node scripts/verify-tracker-api.js",
+    "verify:todos": "node scripts/verify-todo-api.js",
+    "verify:goals": "node scripts/verify-goal-api.js",
+    "verify:admin": "node scripts/verify-admin-api.js",
+    "verify:ingestion-schema": "node scripts/verify-ingestion-schema.js",
+    "verify:ingestion-pipeline": "node scripts/verify-ingestion-pipeline.js",
+    "verify:adapter-remotive": "node scripts/verify-remotive-adapter.js",
+    "verify:ingestion-worker": "node scripts/verify-ingestion-worker.js",
+    "verify:hasjob-adapter": "node scripts/verify-hasjob-adapter.js",
+    "verify:devpost-adapter": "node scripts/verify-devpost-adapter.js",
+    "verify:adzuna-adapter": "node scripts/verify-adzuna-adapter.js",
+    "verify:admin-ingestion": "node scripts/verify-admin-ingestion.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

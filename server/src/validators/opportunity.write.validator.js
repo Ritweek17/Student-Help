@@ -18,8 +18,22 @@ export function validateOpportunityWrite(body = {}, isUpdate = false) {
     return { error: 'Invalid request body', value: null };
   }
 
-  // Explicitly strip/ignore system and read-only fields
-  const forbiddenKeys = ['_id', 'createdAt', 'updatedAt', '__v', 'userId', 'profileId', 'verifiedBy', 'verifiedAt'];
+  // Explicitly strip/ignore system, read-only, and ingestion-only fields
+  const forbiddenKeys = [
+    '_id',
+    'createdAt',
+    'updatedAt',
+    '__v',
+    'userId',
+    'profileId',
+    'verifiedBy',
+    'verifiedAt',
+    'sourceRef',
+    'externalId',
+    'canonicalUrl',
+    'contentFingerprint',
+    'ingestionRunId',
+  ];
   forbiddenKeys.forEach((key) => {
     delete body[key];
   });

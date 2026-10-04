@@ -17,7 +17,8 @@ import {
   CheckCircle2,
   FileText,
   Calendar,
-  Trophy
+  Trophy,
+  ShieldCheck,
 } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 import { useAuth } from '../../context/AuthContext';
@@ -79,7 +80,13 @@ export function Sidebar({ onCloseMobile }) {
         { label: 'Notifications', path: '/notifications', icon: Bell, badge: '8' },
         { label: 'Settings', path: '/settings', icon: Settings }
       ]
-    }
+    },
+    ...(user?.role === 'admin' ? [{
+      title: 'ADMINISTRATION',
+      items: [
+        { label: 'Admin Console', path: '/admin', icon: ShieldCheck, badge: 'ADMIN' }
+      ]
+    }] : [])
   ];
 
   const userDisplayName = user?.email ? user.email.split('@')[0] : 'Alex Chen';

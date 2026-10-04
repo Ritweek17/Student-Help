@@ -161,6 +161,55 @@ const opportunitySchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  // Ingestion data foundation fields (Phase 8B)
+  sourceRef: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'OpportunitySource',
+    index: true,
+  },
+  externalId: {
+    type: String,
+    trim: true,
+    index: true,
+  },
+  canonicalUrl: {
+    type: String,
+    trim: true,
+    index: true,
+  },
+  contentFingerprint: {
+    type: String,
+    trim: true,
+    index: true,
+  },
+  ingestionRunId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'OpportunityIngestionRun',
+  },
+  postedAt: {
+    type: Date,
+    index: true,
+  },
+  lastSeenAt: {
+    type: Date,
+  },
+  qualityScore: {
+    type: Number,
+    min: 0,
+    max: 100,
+    index: true,
+  },
+  relevanceScore: {
+    type: Number,
+    min: 0,
+    max: 100,
+    index: true,
+  },
+  completenessScore: {
+    type: Number,
+    min: 0,
+    max: 100,
+  },
   status: {
     type: String,
     enum: {
@@ -189,5 +238,7 @@ const opportunitySchema = new mongoose.Schema({
 });
 
 opportunitySchema.index({ status: 1, deadline: 1 });
+opportunitySchema.index({ sourceRef: 1, externalId: 1 }, { unique: true, sparse: true });
 
 export const Opportunity = mongoose.models.Opportunity || mongoose.model('Opportunity', opportunitySchema);
+

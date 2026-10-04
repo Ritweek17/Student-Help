@@ -6,8 +6,14 @@ function escapeRegex(text) {
 }
 
 export async function listOpportunities(params = {}) {
-  // Always enforce status = 'published' for student discovery
-  const filter = { status: 'published' };
+  // Enforce status filter: default to 'published' for backwards-compatible student discovery,
+  // allow specific status or 'all' for admin catalog queries.
+  const filter = {};
+  if (params.status && params.status !== 'all') {
+    filter.status = params.status;
+  } else if (!params.status) {
+    filter.status = 'published';
+  }
 
   // 1. Search: q across title, organization, shortDescription, description, skills, tags
   if (params.q) {
@@ -88,6 +94,9 @@ export async function listOpportunities(params = {}) {
     newest: { createdAt: -1 },
     oldest: { createdAt: 1 },
     featured: { featured: -1, createdAt: -1 },
+    quality: { qualityScore: -1, createdAt: -1 },
+    relevance: { relevanceScore: -1, createdAt: -1 },
+    freshness: { postedAt: -1, createdAt: -1 },
   };
 
   const sortOption = sortMap[params.sort] || sortMap.deadline_asc;
@@ -116,9 +125,13 @@ export async function listOpportunities(params = {}) {
   };
 }
 
-export async function getOpportunityById(id) {
+export async function getOpportunityById(id, allowAnyStatus = false) {
   if (!id) return null;
-  return Opportunity.findOne({ _id: id, status: 'published' }).lean();
+  const query = { _id: id };
+  if (!allowAnyStatus) {
+    query.status = 'published';
+  }
+  return Opportunity.findOne(query).lean();
 }
 
 export async function createOpportunity(data, adminUserId) {

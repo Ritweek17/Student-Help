@@ -4,13 +4,16 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 
 export function NoteCard({ note, onTogglePin, onDelete }) {
+  const noteId = note._id || note.id;
+  const displayDate = note.updatedAt || note.updatedDate || note.createdAt || note.createdDate;
+  
   return (
     <Card hoverEffect padding="md" className="flex flex-col justify-between h-full relative group">
       <div>
         <div className="flex items-start justify-between gap-2 mb-2">
           <Badge variant="primary" size="sm">{note.category}</Badge>
           <button
-            onClick={() => onTogglePin(note.id)}
+            onClick={() => onTogglePin(noteId)}
             className={`p-1.5 rounded-lg transition-colors ${
               note.isPinned
                 ? 'text-amber-500 bg-amber-50 dark:bg-amber-950/60'
@@ -43,10 +46,10 @@ export function NoteCard({ note, onTogglePin, onDelete }) {
       </div>
 
       <div className="pt-3 mt-4 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
-        <span>Updated {note.updatedDate || note.createdDate}</span>
+        <span>Updated {displayDate ? new Date(displayDate).toLocaleDateString() : 'Unknown'}</span>
         {onDelete && (
           <button
-            onClick={() => onDelete(note.id)}
+            onClick={() => onDelete(noteId)}
             className="text-slate-400 hover:text-rose-500 transition-colors p-1"
             title="Delete Note"
           >

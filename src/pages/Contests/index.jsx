@@ -5,7 +5,8 @@ import { Button } from '../../components/ui/Button';
 import { ContestCard } from '../../components/cards/ContestCard';
 import { CalendarEventModal } from '../../components/calendar/CalendarEventModal';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { fetchCodingContests } from '../../services/mockApi';
+import { getContests } from '../../services/contestApi';
+import { useAuth } from '../../context/AuthContext';
 
 export function ContestsPage() {
   const [loading, setLoading] = useState(true);
@@ -14,31 +15,41 @@ export function ContestsPage() {
   const [calendarModalOpen, setCalendarModalOpen] = useState(false);
   const [contestToCalendar, setContestToCalendar] = useState(null);
 
+  const { token, logout } = useAuth();
+
   const platforms = ['All', 'LeetCode', 'CodeChef', 'Codeforces', 'AtCoder', 'HackerRank'];
 
   useEffect(() => {
     async function loadContestsData() {
+      if (!token) return;
       try {
-        const data = await fetchCodingContests();
-        setContests(data);
+        const data = await getContests({}, token);
+        const mapped = (data.contests || []).map(c => ({
+          ...c,
+          id: c._id,
+          date: c.eventDate ? new Date(c.eventDate).toLocaleDateString('en-CA') : '',
+          startTime: c.eventDate ? new Date(c.eventDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }) : ''
+        }));
+        setContests(mapped);
       } catch (err) {
         console.error('Error fetching coding contests:', err);
+        if (err.status === 401) logout();
       } finally {
         setLoading(false);
       }
     }
     loadContestsData();
-  }, []);
+  }, [token, logout]);
 
   const handleAddToCalendar = (contest) => {
     const eventObj = {
       title: `${contest.platform} - ${contest.name}`,
       category: 'Contest',
       date: contest.date,
-      startTime: '20:00',
-      endTime: '21:30',
+      startTime: contest.startTime ? contest.startTime.substring(0, 5) : '20:00',
+      endTime: contest.endDate ? new Date(contest.endDate).toLocaleTimeString('en-US', { hour12: false }).substring(0, 5) : '21:30',
       location: contest.contestUrl,
-      description: `Coding contest on ${contest.platform}. Duration: ${contest.duration}. Difficulty: ${contest.difficulty}.`,
+      description: `Coding contest on ${contest.platform}. Duration: ${contest.duration}. Difficulty: ${contest.difficulty || 'N/A'}.`,
       registrationStatus: 'Not Registered'
     };
     setContestToCalendar(eventObj);

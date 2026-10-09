@@ -7,7 +7,8 @@ import { Button } from '../../components/ui/Button';
 import { Progress } from '../../components/ui/Progress';
 import { Select } from '../../components/ui/Select';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { fetchLearningTrackById, fetchLearningItems, fetchLearningResources } from '../../services/mockApi';
+import { getLearningTrackById, getLearningItems, getLearningResources, updateProgress } from '../../services/learningApi';
+import { useAuth } from '../../context/AuthContext';
 
 export function LearningDetailPage() {
   const { id } = useParams();
@@ -15,29 +16,33 @@ export function LearningDetailPage() {
   const [track, setTrack] = useState(null);
   const [items, setItems] = useState([]);
   const [resources, setResources] = useState([]);
+  const { token, logout } = useAuth();
 
   useEffect(() => {
     async function loadTrackDetail() {
+      if (!token) return;
       setLoading(true);
       try {
         const [trackData, itemData, resData] = await Promise.all([
-          fetchLearningTrackById(id),
-          fetchLearningItems(id),
-          fetchLearningResources(id)
+          getLearningTrackById(id, token),
+          getLearningItems(id, token),
+          getLearningResources(id, token)
         ]);
         setTrack(trackData);
         setItems(itemData);
         setResources(resData);
       } catch (err) {
         console.error('Error loading track detail:', err);
+        if (err.status === 401) logout();
       } finally {
         setLoading(false);
       }
     }
     loadTrackDetail();
-  }, [id]);
+  }, [id, token, logout]);
 
-  const handleStatusChange = (itemId, newStatus) => {
+  const handleStatusChange = async (itemId, newStatus) => {
+    // Optimistic UI update
     setItems((prevItems) => {
       const updated = prevItems.map((item) =>
         item.id === itemId ? { ...item, status: newStatus } : item
@@ -55,6 +60,13 @@ export function LearningDetailPage() {
 
       return updated;
     });
+
+    // Background sync
+    try {
+      await updateProgress(id, itemId, newStatus, token);
+    } catch (err) {
+      console.error('Failed to update progress', err);
+    }
   };
 
   if (loading || !track) {

@@ -1,0 +1,17 @@
+# Frontend .dockerignore
+node_modules
+server
+dist
+.git
+.gitignore
+.env
+.env.*
+*.log
+coverage
+.vscode
+.idea
+.DS_Store
+PHASE_10_AUDIT.md
+PHASE_10E_AUDIT.md
+docs
+run-tests.ps1

@@ -238,4 +238,6 @@ async function runTests() {
   console.log('====================================================\n');
 }
 
-runTests();
+runTests().then(() => {
+  process.exit(process.exitCode || 0);
+});

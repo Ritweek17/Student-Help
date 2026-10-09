@@ -9,9 +9,11 @@ import { Modal } from '../../components/ui/Modal';
 import { NoteCard } from '../../components/cards/NoteCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { fetchNotes } from '../../services/mockApi';
+import { getNotes, createNote, updateNote, deleteNote } from '../../services/noteApi';
+import { useAuth } from '../../context/AuthContext';
 
 export function NotesPage() {
+  const { token, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState([]);
   const [search, setSearch] = useState('');
@@ -29,50 +31,77 @@ export function NotesPage() {
 
   useEffect(() => {
     async function loadNotesData() {
+      if (!token) return;
       try {
-        const data = await fetchNotes();
-        setNotes(data);
+        const response = await getNotes({}, token);
+        setNotes(response.notes || []);
       } catch (err) {
         console.error('Error fetching notes:', err);
+        if (err.status === 401) logout();
       } finally {
         setLoading(false);
       }
     }
     loadNotesData();
-  }, []);
+  }, [token, logout]);
 
-  const handleTogglePin = (id) => {
-    setNotes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isPinned: !n.isPinned } : n))
-    );
+  const handleTogglePin = async (id) => {
+    const note = notes.find((n) => n._id === id || n.id === id);
+    if (!note) return;
+    const realId = note._id || note.id;
+    try {
+      const newPin = !note.isPinned;
+      setNotes((prev) =>
+        prev.map((n) => ((n._id === id || n.id === id) ? { ...n, isPinned: newPin } : n))
+      );
+      await updateNote(realId, { isPinned: newPin }, token);
+    } catch (err) {
+      console.error('Error toggling pin:', err);
+      if (err.status === 401) logout();
+      setNotes((prev) =>
+        prev.map((n) => ((n._id === id || n.id === id) ? { ...n, isPinned: note.isPinned } : n))
+      );
+    }
   };
 
-  const handleDeleteNote = (id) => {
-    setNotes((prev) => prev.filter((n) => n.id !== id));
+  const handleDeleteNote = async (id) => {
+    const note = notes.find((n) => n._id === id || n.id === id);
+    if (!note) return;
+    const realId = note._id || note.id;
+    try {
+      await deleteNote(realId, token);
+      setNotes((prev) => prev.filter((n) => n._id !== id && n.id !== id));
+    } catch (err) {
+      console.error('Error deleting note:', err);
+      if (err.status === 401) logout();
+    }
   };
 
-  const handleCreateNote = (e) => {
+  const handleCreateNote = async (e) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) return;
 
     const tags = tagsStr.split(',').map((t) => t.trim()).filter(Boolean);
 
-    const newNote = {
-      id: `note-${Date.now()}`,
+    const newNotePayload = {
       title,
       category,
       content,
       tags,
       isPinned,
-      createdDate: '2026-08-31',
-      updatedDate: '2026-08-31'
     };
 
-    setNotes([newNote, ...notes]);
-    setTitle('');
-    setContent('');
-    setTagsStr('');
-    setAddModalOpen(false);
+    try {
+      const response = await createNote(newNotePayload, token);
+      setNotes([response.note, ...notes]);
+      setTitle('');
+      setContent('');
+      setTagsStr('');
+      setAddModalOpen(false);
+    } catch (err) {
+      console.error('Error creating note:', err);
+      if (err.status === 401) logout();
+    }
   };
 
   const filteredNotes = notes.filter((n) => {
@@ -146,7 +175,7 @@ export function NotesPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {pinnedNotes.map((note) => (
               <NoteCard
-                key={note.id}
+                key={note._id || note.id}
                 note={note}
                 onTogglePin={handleTogglePin}
                 onDelete={handleDeleteNote}
@@ -168,7 +197,7 @@ export function NotesPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {otherNotes.map((note) => (
               <NoteCard
-                key={note.id}
+                key={note._id || note.id}
                 note={note}
                 onTogglePin={handleTogglePin}
                 onDelete={handleDeleteNote}

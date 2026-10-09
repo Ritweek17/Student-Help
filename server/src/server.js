@@ -1,45 +1,60 @@
 import { app } from './app.js';
 import { connectDatabase, disconnectDatabase } from './config/db.js';
 import { env } from './config/env.js';
+import { createGracefulShutdownHandler, setupProcessHandlers } from './utils/shutdown.js';
 
-let server;
-let isShuttingDown = false;
+let server = null;
+let shutdownCoordinator = null;
 
-async function startServer() {
+export async function shutdown(signal = 'SIGTERM', options = {}) {
+  if (shutdownCoordinator) {
+    return shutdownCoordinator.shutdown(signal);
+  }
+  const fallbackHandler = createGracefulShutdownHandler({
+    server,
+    disconnectDb: disconnectDatabase,
+    timeoutMs: options.timeoutMs ?? (Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10000),
+    exitFn: options.exitFn ?? process.exit,
+  });
+  return fallbackHandler.shutdown(signal);
+}
+
+export async function startServer(port = env.port, options = {}) {
   try {
     await connectDatabase();
-    server = app.listen(env.port, () => {
-      console.log(`CareerOS API listening on port ${env.port}`);
+    server = app.listen(port, () => {
+      console.log(`CareerOS API listening on port ${port}`);
     });
-  } catch {
-    console.error('CareerOS API did not start because MongoDB is unavailable.');
-    process.exit(1);
-  }
-}
 
-async function shutdown(signal) {
-  if (isShuttingDown) {
-    return;
-  }
+    shutdownCoordinator = createGracefulShutdownHandler({
+      server,
+      disconnectDb: disconnectDatabase,
+      timeoutMs: options.timeoutMs ?? (Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10000),
+      exitFn: options.exitFn ?? process.exit,
+    });
 
-  isShuttingDown = true;
-  console.log(`${signal} received. Shutting down CareerOS API.`);
+    if (options.registerProcessHandlers !== false) {
+      setupProcessHandlers(shutdownCoordinator);
+    }
 
-  const closeServer = server
-    ? new Promise((resolve) => server.close(resolve))
-    : Promise.resolve();
-
-  try {
-    await disconnectDatabase();
-    await closeServer;
-    process.exit(0);
+    return server;
   } catch (error) {
-    console.error('CareerOS API shutdown encountered an error.', { name: error.name, code: error.code });
-    process.exit(1);
+    console.error('CareerOS API did not start because MongoDB is unavailable.', {
+      name: error?.name,
+      message: error?.message,
+    });
+    const exit = options.exitFn ?? process.exit;
+    exit(1);
+    return null;
   }
 }
 
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
+export function getServer() {
+  return server;
+}
 
-startServer();
+// Auto-start when invoked directly as entrypoint
+if (process.argv[1] && process.argv[1].endsWith('server.js')) {
+  startServer();
+}
+

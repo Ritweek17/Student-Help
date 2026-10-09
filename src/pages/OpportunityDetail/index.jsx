@@ -24,6 +24,9 @@ import { useSavedOpportunities } from '../../context/SavedOpportunityContext';
 import { useApplications } from '../../context/ApplicationContext';
 import { getTrackingType, APPLICATION_STATUSES, REGISTRATION_STATUSES } from '../../utils/trackingTypeHelper';
 import * as opportunityApi from '../../services/opportunityApi';
+import { WhyYouMatchCard } from '../../components/intelligence/WhyYouMatchCard';
+import { PreparationPlanCard } from '../../components/intelligence/PreparationPlanCard';
+import { CareerCoachCard } from '../../components/intelligence/CareerCoachCard';
 
 function formatTypeLabel(typeStr) {
   if (!typeStr) return 'Opportunity';
@@ -88,6 +91,11 @@ export function OpportunityDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Intelligence Match state
+  const [matchData, setMatchData] = useState(null);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [matchError, setMatchError] = useState(null);
+
   // Modals
   const [applyModalOpen, setApplyModalOpen] = useState(false);
   const [calendarModalOpen, setCalendarModalOpen] = useState(false);
@@ -111,6 +119,22 @@ export function OpportunityDetailPage() {
     }
   }, [trackingRecord]);
 
+  const fetchMatch = async (targetId, abortSignal) => {
+    if (!token || !targetId) return;
+    setMatchLoading(true);
+    setMatchError(null);
+    try {
+      const matchRes = await opportunityApi.getOpportunityMatch(targetId, token, abortSignal);
+      setMatchData(matchRes.match);
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      // Fail open: log warning but never disrupt viewing opportunity details
+      setMatchError(err.message || 'Unable to calculate match');
+    } finally {
+      setMatchLoading(false);
+    }
+  };
+
   const fetchDetail = async (abortSignal) => {
     if (!token || !id) return;
     setLoading(true);
@@ -118,6 +142,7 @@ export function OpportunityDetailPage() {
     try {
       const response = await opportunityApi.getOpportunityById(id, token, abortSignal);
       setOpportunity(response.opportunity);
+      fetchMatch(id, abortSignal);
     } catch (err) {
       if (err.name === 'AbortError') return;
       if (err.status === 401) {
@@ -366,6 +391,27 @@ export function OpportunityDetailPage() {
       {/* Main Details Body */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {/* CareerOS Intelligence: Why You Match */}
+          <WhyYouMatchCard
+            match={matchData}
+            loading={matchLoading}
+            error={matchError}
+            onRetry={() => fetchMatch(oppId)}
+          />
+
+          {/* CareerOS Intelligence: Opportunity-to-Action Plan */}
+          <PreparationPlanCard
+            opportunityId={oppId}
+            token={token}
+          />
+
+          {/* CareerOS Intelligence: AI Career Coach Copilot */}
+          <CareerCoachCard
+            contextType="opportunity"
+            defaultPrompt="How should I prepare for this opportunity?"
+            token={token}
+          />
+
           <Card padding="lg" className="space-y-4">
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 font-heading">
               About the Opportunity

@@ -1,0 +1,15 @@
+# Backend .dockerignore
+node_modules
+.git
+.gitignore
+.env
+.env.*
+*.log
+tests
+scripts
+run-auth.js
+test-txn.js
+coverage
+.vscode
+.idea
+.DS_Store

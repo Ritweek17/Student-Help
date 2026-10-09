@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { User, Sun, Moon, Bell, Shield, Sliders, Calendar, Code, ExternalLink, RefreshCw } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card } from '../../components/ui/Card';
@@ -177,16 +178,19 @@ export function SettingsPage() {
               <Badge variant="info" size="sm">UI Architecture Only</Badge>
             </div>
             <p className="text-xs text-slate-500">
-              Future platform APIs will fetch problem counts and contest ratings automatically.
+              Manage your GitHub public proof of work directly on your{' '}
+              <Link to="/profile" className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline">
+                Profile page →
+              </Link>
             </p>
           </div>
 
           <div className="space-y-3">
             {[
+              { name: 'GitHub', handle: 'Verified Proof of Work', connected: true, isGitHub: true },
               { name: 'LeetCode', handle: '@alexchen_demo', connected: true },
               { name: 'CodeChef', handle: '@alexchen_demo', connected: true },
               { name: 'Codeforces', handle: 'Not Connected', connected: false },
-              { name: 'GitHub', handle: '@alex-chen-demo', connected: true },
               { name: 'AtCoder', handle: 'Not Connected', connected: false }
             ].map((plat, idx) => (
               <div key={idx} className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs font-medium">
@@ -194,9 +198,18 @@ export function SettingsPage() {
                   <span className="font-bold text-slate-900 dark:text-slate-100 block">{plat.name}</span>
                   <span className="text-slate-500">{plat.handle}</span>
                 </div>
-                <Badge variant={plat.connected ? 'success' : 'default'} size="sm">
-                  {plat.connected ? 'Connected' : 'Connect'}
-                </Badge>
+                {plat.isGitHub ? (
+                  <Link
+                    to="/profile"
+                    className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:underline"
+                  >
+                    Manage on Profile →
+                  </Link>
+                ) : (
+                  <Badge variant={plat.connected ? 'success' : 'default'} size="sm">
+                    {plat.connected ? 'Connected' : 'Connect'}
+                  </Badge>
+                )}
               </div>
             ))}
           </div>

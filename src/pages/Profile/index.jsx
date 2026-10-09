@@ -17,7 +17,7 @@ import {
   AlertCircle,
   CheckCircle2,
   RefreshCw,
-  Sparkles
+  Sparkles,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card } from '../../components/ui/Card';
@@ -35,6 +35,10 @@ import { Textarea } from '../../components/ui/Textarea';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { useAuth } from '../../context/AuthContext';
 import * as profileApi from '../../services/profileApi';
+import * as githubApi from '../../services/githubApi';
+import * as intelligenceApi from '../../services/intelligenceApi';
+import { GitHubProofCard } from '../../components/intelligence/GitHubProofCard';
+import { EvidenceMatrix } from '../../components/intelligence/EvidenceMatrix';
 
 const SKILL_LEVELS = ['beginner', 'intermediate', 'advanced', 'expert'];
 const DOCUMENT_TYPES = ['resume', 'certificate', 'other'];
@@ -78,6 +82,14 @@ export function ProfilePage() {
   // Main UI Tab state
   const [activeTab, setActiveTab] = useState('Overview');
 
+  // GitHub Proof of Work state
+  const [githubEvidence, setGithubEvidence] = useState(null);
+  const [isSyncingGitHub, setIsSyncingGitHub] = useState(false);
+  const [githubSyncError, setGithubSyncError] = useState(null);
+
+  // Career Readiness Evidence state
+  const [readinessEvidence, setReadinessEvidence] = useState([]);
+
   const fetchProfileData = async () => {
     if (!token) return;
     setIsLoading(true);
@@ -85,6 +97,9 @@ export function ProfilePage() {
     try {
       const response = await profileApi.getProfile(token);
       setProfile(response.profile);
+      if (response.profile?.githubEvidence) {
+        setGithubEvidence(response.profile.githubEvidence);
+      }
     } catch (err) {
       if (err.status === 401) {
         logout();
@@ -97,9 +112,108 @@ export function ProfilePage() {
     }
   };
 
+  const fetchGitHubEvidence = async () => {
+    if (!token) return;
+    try {
+      const res = await githubApi.getGitHubEvidence(token);
+      if (res?.evidence) {
+        setGithubEvidence(res.evidence);
+      }
+    } catch {
+      // Fail open: profile.githubEvidence remains active
+    }
+  };
+
+  const fetchCareerReadiness = async () => {
+    if (!token) return;
+    try {
+      const res = await intelligenceApi.getCareerReadiness(token);
+      if (res?.readiness?.evidence) {
+        setReadinessEvidence(res.readiness.evidence);
+      }
+    } catch {
+      // Fail open: profile skills and github evidence remain active
+    }
+  };
+
   useEffect(() => {
     fetchProfileData();
+    fetchGitHubEvidence();
+    fetchCareerReadiness();
   }, [token]);
+
+  const handleSyncGitHub = async (options = {}) => {
+    if (!token || isSyncingGitHub) return;
+    setIsSyncingGitHub(true);
+    setGithubSyncError(null);
+    try {
+      const res = await githubApi.syncGitHubEvidence(token, options);
+      if (res?.evidence) {
+        setGithubEvidence(res.evidence);
+        setProfile((prev) => (prev ? { ...prev, githubEvidence: res.evidence } : prev));
+        setSuccessMessage('GitHub proof of work synced successfully!');
+        setTimeout(() => setSuccessMessage(null), 4000);
+      }
+    } catch (err) {
+      setGithubSyncError(err.message || 'Failed to sync GitHub profile.');
+    } finally {
+      setIsSyncingGitHub(false);
+    }
+  };
+
+  const handleDisconnectGitHub = async ({ clearLink = false } = {}) => {
+    if (!token) return;
+    try {
+      await githubApi.disconnectGitHubEvidence(token, { clearLink });
+      const resetEvidence = {
+        username: '',
+        syncedAt: null,
+        publicRepoCount: 0,
+        topLanguages: [],
+        detectedSkills: [],
+        syncStatus: 'not_connected',
+        lastError: null,
+      };
+      setGithubEvidence(resetEvidence);
+      setProfile((prev) => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          githubEvidence: resetEvidence,
+        };
+        if (clearLink) {
+          const links = { ...(updated.professionalLinks || {}) };
+          delete links.github;
+          updated.professionalLinks = links;
+        }
+        return updated;
+      });
+      setSuccessMessage(
+        clearLink
+          ? 'GitHub profile link and proof disconnected.'
+          : 'GitHub proof disconnected. Profile link preserved.'
+      );
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (err) {
+      setGithubSyncError(err.message || 'Failed to disconnect GitHub.');
+    }
+  };
+
+  const handleSaveGitHubUrl = async (newUrl) => {
+    if (!token || !profile) return;
+    try {
+      const updatedLinks = { ...(profile.professionalLinks || {}), github: newUrl };
+      const updatedDraft = {
+        ...sanitizeDraftForSave(profile),
+        professionalLinks: updatedLinks,
+      };
+      const res = await profileApi.updateProfile(token, updatedDraft);
+      setProfile(res.profile);
+      await handleSyncGitHub({ force: true });
+    } catch (err) {
+      setGithubSyncError(err.message || 'Failed to update GitHub URL on profile.');
+    }
+  };
 
   const handleOpenEdit = () => {
     if (!profile) return;
@@ -411,14 +525,39 @@ export function ProfilePage() {
 
           {/* Right Column: Social Links & Preferences */}
           <div className="space-y-6">
+            <GitHubProofCard
+              githubUrl={links.github || ''}
+              evidence={githubEvidence || profile.githubEvidence}
+              isSyncing={isSyncingGitHub}
+              syncError={githubSyncError}
+              onSync={() => handleSyncGitHub()}
+              onDisconnect={handleDisconnectGitHub}
+              onSaveUrl={handleSaveGitHubUrl}
+            />
+
             <Card padding="lg" className="space-y-4">
               <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading border-b border-slate-100 dark:border-slate-800 pb-3">
                 Professional Links
               </h3>
               <div className="space-y-2.5 text-xs font-medium">
                 {links.github ? (
-                  <a href={links.github} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-500">
-                    <span className="flex items-center gap-2"><Github className="w-4 h-4" /> GitHub</span>
+                  <a
+                    href={links.github.startsWith('http') ? links.github : `https://${links.github}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-500"
+                    aria-label="View GitHub Profile (opens in new tab)"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Github className="w-4 h-4" />
+                      <span>GitHub</span>
+                      {(githubEvidence?.syncStatus === 'synced' || profile.githubEvidence?.syncStatus === 'synced') && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 ml-1">
+                          <CheckCircle2 className="w-2.5 h-2.5" />
+                          Verified
+                        </span>
+                      )}
+                    </span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 ) : (
@@ -426,7 +565,13 @@ export function ProfilePage() {
                 )}
 
                 {links.linkedin ? (
-                  <a href={links.linkedin} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-500">
+                  <a
+                    href={links.linkedin.startsWith('http') ? links.linkedin : `https://${links.linkedin}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-500"
+                    aria-label="View LinkedIn Profile (opens in new tab)"
+                  >
                     <span className="flex items-center gap-2"><Linkedin className="w-4 h-4" /> LinkedIn</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
@@ -435,14 +580,26 @@ export function ProfilePage() {
                 )}
 
                 {links.portfolio && (
-                  <a href={links.portfolio} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-500">
+                  <a
+                    href={links.portfolio.startsWith('http') ? links.portfolio : `https://${links.portfolio}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-500"
+                    aria-label="View Portfolio (opens in new tab)"
+                  >
                     <span className="flex items-center gap-2"><LinkIcon className="w-4 h-4" /> Portfolio Site</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 )}
 
                 {links.leetcode && (
-                  <a href={links.leetcode} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-500">
+                  <a
+                    href={links.leetcode.startsWith('http') ? links.leetcode : `https://${links.leetcode}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-500"
+                    aria-label="View LeetCode Profile (opens in new tab)"
+                  >
                     <span className="flex items-center gap-2"><Code className="w-4 h-4" /> LeetCode</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
@@ -481,30 +638,77 @@ export function ProfilePage() {
 
       {/* TAB 2: SKILLS */}
       {activeTab === 'Skills' && (
-        <Card padding="lg" className="space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading">
-              Technical Skill Matrix ({skillsList.length})
-            </h3>
-            <Button size="sm" icon={Plus} onClick={handleOpenEdit}>
-              Edit Skills
-            </Button>
-          </div>
-
-          {skillsList.length === 0 ? (
-            <EmptyState
-              icon={Code}
-              title="No skills added"
-              description="Click Edit Profile to add tech skills and proficiency levels."
-            />
-          ) : (
-            <div className="flex flex-wrap gap-2.5">
-              {skillsList.map((skillItem, idx) => (
-                <SkillChip key={idx} skill={`${skillItem.name} (${skillItem.level})`} size="lg" />
-              ))}
+        <div className="space-y-6">
+          <Card padding="lg" className="space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading">
+                Technical Skill Matrix ({skillsList.length})
+              </h3>
+              <Button size="sm" icon={Plus} onClick={handleOpenEdit}>
+                Edit Skills
+              </Button>
             </div>
+
+            {skillsList.length === 0 ? (
+              <EmptyState
+                icon={Code}
+                title="No skills added"
+                description="Click Edit Profile to add tech skills and proficiency levels."
+              />
+            ) : (
+              <div className="flex flex-wrap gap-2.5">
+                {skillsList.map((skillItem, idx) => (
+                  <SkillChip key={idx} skill={`${skillItem.name} (${skillItem.level})`} size="lg" />
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Evidence Strength Matrix (Phase 11F) */}
+          <EvidenceMatrix evidence={readinessEvidence} />
+
+          {/* GitHub Verified Skills Section */}
+          {((githubEvidence?.detectedSkills?.length > 0) || (profile.githubEvidence?.detectedSkills?.length > 0)) && (
+            <Card padding="lg" className="space-y-4 border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 flex items-center justify-center">
+                    <Github className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-heading">
+                      GitHub Verified Skills ({(githubEvidence || profile.githubEvidence).detectedSkills.length})
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Demonstrated through public repository activity
+                    </p>
+                  </div>
+                </div>
+                <Badge variant="neutral" size="sm">GitHub Verified</Badge>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {(githubEvidence || profile.githubEvidence).detectedSkills.map((skill, idx) => (
+                  <div
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-slate-100"
+                  >
+                    <span>{skill.displayName || skill.canonicalKey}</span>
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-md bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 text-[10px] font-medium tracking-tight">
+                      <Github className="w-2.5 h-2.5 shrink-0" />
+                      GitHub Verified
+                    </span>
+                    {skill.repoCount > 1 && (
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        ({skill.repoCount} repos)
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
           )}
-        </Card>
+        </div>
       )}
 
       {/* TAB 3: PROJECTS */}

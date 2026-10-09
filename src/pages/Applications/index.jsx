@@ -25,10 +25,16 @@ import { Modal } from '../../components/ui/Modal';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ApplicationCard } from '../../components/cards/ApplicationCard';
+import { ApplicationHealthCard } from '../../components/intelligence/ApplicationHealthCard';
+import { ApplicationFunnelCard } from '../../components/intelligence/ApplicationFunnelCard';
+import { StalledApplicationsCard } from '../../components/intelligence/StalledApplicationsCard';
+import { OutcomeInsightsCard } from '../../components/intelligence/OutcomeInsightsCard';
+import { RejectionPatternCard } from '../../components/intelligence/RejectionPatternCard';
 import { useAuth } from '../../context/AuthContext';
 import { useApplications } from '../../context/ApplicationContext';
 import { APPLICATION_STATUSES, REGISTRATION_STATUSES } from '../../utils/trackingTypeHelper';
 import * as applicationApi from '../../services/applicationApi';
+import * as intelligenceApi from '../../services/intelligenceApi';
 
 export function ApplicationsPage() {
   const navigate = useNavigate();
@@ -39,6 +45,13 @@ export function ApplicationsPage() {
   const [error, setError] = useState(null);
   const [applications, setApplications] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
+
+  // Application Intelligence State
+  const [intelOverview, setIntelOverview] = useState(null);
+  const [intelOutcomes, setIntelOutcomes] = useState(null);
+  const [intelLoading, setIntelLoading] = useState(true);
+  const [intelError, setIntelError] = useState(null);
+  const [showIntelDetails, setShowIntelDetails] = useState(false);
 
   // Filters & Page
   const [page, setPage] = useState(1);
@@ -93,11 +106,31 @@ export function ApplicationsPage() {
     }
   }, [token, page, typeFilter, statusFilter, logout]);
 
+  const loadIntelligenceData = useCallback(async (abortSignal) => {
+    if (!token) return;
+    setIntelLoading(true);
+    setIntelError(null);
+    try {
+      const [ovRes, outRes] = await Promise.all([
+        intelligenceApi.getApplicationOverview(token, abortSignal),
+        intelligenceApi.getApplicationOutcomes(token, abortSignal),
+      ]);
+      setIntelOverview(ovRes.overview || null);
+      setIntelOutcomes(outRes.outcomes || null);
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      setIntelError(err.message || 'Application intelligence is temporarily unavailable.');
+    } finally {
+      setIntelLoading(false);
+    }
+  }, [token]);
+
   useEffect(() => {
     const controller = new AbortController();
     loadApplicationsData(controller.signal);
+    loadIntelligenceData(controller.signal);
     return () => controller.abort();
-  }, [loadApplicationsData]);
+  }, [loadApplicationsData, loadIntelligenceData]);
 
   const handleTypeFilterChange = (typeVal) => {
     setTypeFilter(typeVal);
@@ -190,6 +223,19 @@ export function ApplicationsPage() {
     }
   };
 
+  const handleFollowUpAction = (action) => {
+    if (!action?.applicationId) return;
+    const target = applications.find(
+      (a) => a._id === action.applicationId || String(a._id) === String(action.applicationId)
+    );
+    if (target) {
+      handleOpenDetails(target);
+    } else {
+      const el = document.getElementById('applications-list-container');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   // Pipeline Metric Counts
   const counts = {
     Applied: applications.filter((a) => a.status === 'applied' || a.status === 'registered').length,
@@ -207,6 +253,57 @@ export function ApplicationsPage() {
         title="Application Tracker"
         subtitle="Manage your active job applications, interview timelines, and registrations."
       />
+
+      {/* ─── Application Intelligence & Funnel Strip ──────────────── */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ApplicationHealthCard
+            overview={intelOverview}
+            loading={intelLoading}
+            error={intelError}
+            onRetry={() => loadIntelligenceData()}
+            onFollowUp={handleFollowUpAction}
+          />
+          <StalledApplicationsCard
+            stalledApplications={intelOverview?.stalledApplications}
+            actions={intelOverview?.actions}
+            onFollowUp={handleFollowUpAction}
+            loading={intelLoading}
+          />
+        </div>
+
+        <ApplicationFunnelCard
+          funnel={intelOverview?.funnel}
+          loading={intelLoading}
+        />
+
+        {/* Collapsible toggle for deep Outcome and Rejection Intelligence */}
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setShowIntelDetails((prev) => !prev)}
+            className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1.5 transition-colors"
+          >
+            <span>{showIntelDetails ? 'Hide' : 'View'} Outcome Insights & Rejection Patterns</span>
+            <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${showIntelDetails ? 'rotate-90' : ''}`} />
+          </button>
+        </div>
+
+        {showIntelDetails && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-fadeIn">
+            <OutcomeInsightsCard
+              outcomes={intelOutcomes}
+              loading={intelLoading}
+            />
+            <RejectionPatternCard
+              rejectionPatterns={intelOutcomes?.rejectionPatterns}
+              loading={intelLoading}
+            />
+          </div>
+        )}
+      </div>
+
+      <div id="applications-list-container" className="space-y-6">
 
       {/* Summary Pipeline Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -421,6 +518,7 @@ export function ApplicationsPage() {
           onAction={() => navigate('/opportunities')}
         />
       )}
+      </div>
 
       {/* Application Detail & Edit Drawer */}
       {selectedApp && selectedApp.opportunity && (

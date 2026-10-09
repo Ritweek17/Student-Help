@@ -219,3 +219,92 @@ export async function deleteOpportunity(id, token, signal) {
   }
 }
 
+export async function getOpportunityMatch(id, token, signal) {
+  if (!token) {
+    throw new OpportunityApiError('Authentication token is required', 401, 'UNAUTHORIZED');
+  }
+
+  if (!id) {
+    throw new OpportunityApiError('Opportunity ID is required', 400, 'BAD_REQUEST');
+  }
+
+  const url = `${API_BASE_URL}/api/intelligence/opportunities/${id}/match`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      signal,
+    });
+
+    return await handleResponse(response, 'Failed to calculate opportunity fit.');
+  } catch (error) {
+    if (error.name === 'AbortError') throw error;
+    if (error instanceof OpportunityApiError) throw error;
+    throw new OpportunityApiError('Failed to calculate opportunity fit.', 0, 'NETWORK_ERROR');
+  }
+}
+
+export async function getOpportunityPreparationPlan(id, token, signal) {
+  if (!token) {
+    throw new OpportunityApiError('Authentication token is required', 401, 'UNAUTHORIZED');
+  }
+
+  if (!id) {
+    throw new OpportunityApiError('Opportunity ID is required', 400, 'BAD_REQUEST');
+  }
+
+  const url = `${API_BASE_URL}/api/intelligence/opportunities/${id}/plan`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      signal,
+    });
+
+    return await handleResponse(response, 'Failed to fetch preparation plan.');
+  } catch (error) {
+    if (error.name === 'AbortError') throw error;
+    if (error instanceof OpportunityApiError) throw error;
+    throw new OpportunityApiError('Failed to fetch preparation plan.', 0, 'NETWORK_ERROR');
+  }
+}
+
+export async function generateOpportunityPreparationPlan(id, options = {}, token, signal) {
+  if (!token) {
+    throw new OpportunityApiError('Authentication token is required', 401, 'UNAUTHORIZED');
+  }
+
+  if (!id) {
+    throw new OpportunityApiError('Opportunity ID is required', 400, 'BAD_REQUEST');
+  }
+
+  const url = `${API_BASE_URL}/api/intelligence/opportunities/${id}/plan/generate`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(options),
+      signal,
+    });
+
+    return await handleResponse(response, 'Failed to generate preparation plan actions.');
+  } catch (error) {
+    if (error.name === 'AbortError') throw error;
+    if (error instanceof OpportunityApiError) throw error;
+    throw new OpportunityApiError('Failed to generate preparation plan actions.', 0, 'NETWORK_ERROR');
+  }
+}
+
+

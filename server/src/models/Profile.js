@@ -81,6 +81,41 @@ const documentSchema = new mongoose.Schema({
   uploadedAt: { type: Date, default: Date.now },
 }, { _id: false });
 
+const githubRepositoryEvidenceSchema = new mongoose.Schema({
+  name: { type: String, trim: true },
+  url: urlField,
+  isFork: { type: Boolean, default: false },
+  primaryLanguage: { type: String, trim: true },
+  updatedAt: Date,
+}, { _id: false });
+
+const githubDetectedSkillSchema = new mongoose.Schema({
+  canonicalKey: { type: String, required: true, trim: true, lowercase: true },
+  displayName: { type: String, required: true, trim: true },
+  category: { type: String, trim: true },
+  repoCount: { type: Number, default: 0 },
+  repositories: [githubRepositoryEvidenceSchema],
+}, { _id: false });
+
+export const GITHUB_SYNC_STATUSES = ['idle', 'synced', 'failed', 'not_connected'];
+
+const githubEvidenceSchema = new mongoose.Schema({
+  username: { type: String, trim: true },
+  syncedAt: Date,
+  publicRepoCount: { type: Number, default: 0 },
+  topLanguages: [{ type: String, trim: true }],
+  detectedSkills: [githubDetectedSkillSchema],
+  syncStatus: {
+    type: String,
+    enum: {
+      values: GITHUB_SYNC_STATUSES,
+      message: 'Invalid GitHub sync status',
+    },
+    default: 'idle',
+  },
+  lastError: { type: String, trim: true },
+}, { _id: false });
+
 const profileSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -126,6 +161,18 @@ const profileSchema = new mongoose.Schema({
   },
   careerGoal: {
     title: { type: String, trim: true },
+  },
+  githubEvidence: {
+    type: githubEvidenceSchema,
+    default: () => ({
+      username: '',
+      syncedAt: null,
+      publicRepoCount: 0,
+      topLanguages: [],
+      detectedSkills: [],
+      syncStatus: 'idle',
+      lastError: null,
+    }),
   },
 }, {
   timestamps: true,

@@ -61,6 +61,7 @@ export async function login({ email, password }) {
   try {
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -89,6 +90,7 @@ export async function signup({ email, password, firstName, lastName }) {
 
     const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -104,10 +106,49 @@ export async function signup({ email, password, firstName, lastName }) {
   }
 }
 
+export async function refreshToken() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    if (error instanceof AuthApiError) {
+      throw error;
+    }
+    throw new AuthApiError('Unable to connect to CareerOS. Please try again.', 0, 'NETWORK_ERROR');
+  }
+}
+
+export async function logout() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    if (error instanceof AuthApiError) {
+      throw error;
+    }
+    throw new AuthApiError('Unable to connect to CareerOS. Please try again.', 0, 'NETWORK_ERROR');
+  }
+}
+
 export async function getCurrentUser(token) {
   try {
     const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         Authorization: `Bearer ${token}`,
       },

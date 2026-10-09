@@ -180,30 +180,54 @@ export async function runIngestionCycle() {
   }
 }
 
-export async function shutdown(signal = 'SIGTERM') {
-  if (isShuttingDown) return;
+let shutdownPromise = null;
+
+export function isWorkerShuttingDown() {
+  return isShuttingDown;
+}
+
+export async function shutdown(signal = 'SIGTERM', options = {}) {
+  if (isShuttingDown && shutdownPromise) {
+    return shutdownPromise;
+  }
 
   isShuttingDown = true;
+  const timeoutMs = options.timeoutMs ?? (Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10000);
+  const exitFn = options.exitFn ?? process.exit;
+  const disconnectDb = options.disconnectDb ?? disconnectDatabase;
+  const isError = signal === 'uncaughtException' || signal === 'unhandledRejection';
+
   console.log(`[IngestionWorker:${WORKER_ID}] ${signal} received. Initiating graceful shutdown.`);
 
-  if (timerHandle) {
-    clearTimeout(timerHandle);
-    timerHandle = null;
-  }
+  shutdownPromise = (async () => {
+    if (timerHandle) {
+      clearTimeout(timerHandle);
+      timerHandle = null;
+    }
 
-  // Wait for currently active cycle to finish if running
-  while (isRunning) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
+    // Wait for currently active cycle to finish with bounded safety timeout
+    const startTime = Date.now();
+    while (isRunning) {
+      if (Date.now() - startTime >= timeoutMs) {
+        console.warn(`[IngestionWorker:${WORKER_ID}] Active cycle did not finish within ${timeoutMs}ms. Forcing database disconnect.`);
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
 
-  try {
-    await disconnectDatabase();
-    console.log(`[IngestionWorker:${WORKER_ID}] Database connection closed cleanly.`);
-    process.exit(0);
-  } catch (err) {
-    console.error(`[IngestionWorker:${WORKER_ID}] Error disconnecting database during shutdown:`, err);
-    process.exit(1);
-  }
+    try {
+      if (typeof disconnectDb === 'function') {
+        await disconnectDb();
+      }
+      console.log(`[IngestionWorker:${WORKER_ID}] Database connection closed cleanly.`);
+      exitFn(isError ? 1 : 0);
+    } catch (err) {
+      console.error(`[IngestionWorker:${WORKER_ID}] Error disconnecting database during shutdown:`, err?.message || err);
+      exitFn(1);
+    }
+  })();
+
+  return shutdownPromise;
 }
 
 export async function startWorker() {
@@ -224,5 +248,13 @@ export async function startWorker() {
 if (process.argv[1] && process.argv[1].endsWith('ingestion.worker.js')) {
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('uncaughtException', (err) => {
+    console.error(`[IngestionWorker:${WORKER_ID}] Fatal uncaughtException:`, err?.message || err);
+    shutdown('uncaughtException');
+  });
+  process.on('unhandledRejection', (reason) => {
+    console.error(`[IngestionWorker:${WORKER_ID}] Fatal unhandledRejection:`, reason?.message || reason);
+    shutdown('unhandledRejection');
+  });
   startWorker();
 }

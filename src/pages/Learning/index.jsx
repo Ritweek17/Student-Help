@@ -8,33 +8,37 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { LearningTrackCard } from '../../components/cards/LearningTrackCard';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { fetchLearningTracks, fetchLearningResources, fetchRecommendedNext } from '../../services/mockApi';
+import { getLearningTracks, getLearningResources, getRecommendedNext } from '../../services/learningApi';
+import { useAuth } from '../../context/AuthContext';
 
 export function LearningPage() {
   const [loading, setLoading] = useState(true);
   const [tracks, setTracks] = useState([]);
   const [resources, setResources] = useState([]);
   const [recommendedNext, setRecommendedNext] = useState([]);
+  const { token, logout } = useAuth();
 
   useEffect(() => {
     async function loadLearningData() {
+      if (!token) return;
       try {
         const [trackData, resData, recData] = await Promise.all([
-          fetchLearningTracks(),
-          fetchLearningResources(),
-          fetchRecommendedNext()
+          getLearningTracks(token),
+          getLearningResources(null, token),
+          getRecommendedNext(token)
         ]);
         setTracks(trackData);
         setResources(resData);
         setRecommendedNext(recData);
       } catch (err) {
         console.error('Error fetching learning hub:', err);
+        if (err.status === 401) logout();
       } finally {
         setLoading(false);
       }
     }
     loadLearningData();
-  }, []);
+  }, [token, logout]);
 
   if (loading) {
     return <LoadingState text="Loading Learning Hub & Track Progress..." />;

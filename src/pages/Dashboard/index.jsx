@@ -16,6 +16,7 @@ import {
   ExternalLink,
   ChevronRight,
   TrendingUp,
+  Target,
 } from 'lucide-react';
 import { SectionHeader } from '../../components/ui/SectionHeader';
 import { Card } from '../../components/ui/Card';
@@ -30,6 +31,10 @@ import { useNotifications } from '../../context/NotificationContext';
 import { useCalendar } from '../../context/CalendarContext';
 import * as profileApi from '../../services/profileApi';
 import * as savedOpportunityApi from '../../services/savedOpportunityApi';
+import * as intelligenceApi from '../../services/intelligenceApi';
+import { CareerReadinessCard } from '../../components/intelligence/CareerReadinessCard';
+import { ApplicationHealthCard } from '../../components/intelligence/ApplicationHealthCard';
+import { CareerCoachCard } from '../../components/intelligence/CareerCoachCard';
 import { EVENT_TYPE_COLORS, EVENT_TYPE_LABELS, formatEventTime, getEventDateStr } from '../../components/calendar/CalendarView';
 
 const STATUS_BADGE_VARIANTS = {
@@ -167,7 +172,61 @@ export function DashboardPage() {
   const [recentSavedLoading, setRecentSavedLoading] = useState(true);
   const [recentSavedError, setRecentSavedError] = useState(null);
 
+  // Career Readiness Intelligence State
+  const [readiness, setReadiness] = useState(null);
+  const [readinessLoading, setReadinessLoading] = useState(true);
+  const [readinessError, setReadinessError] = useState(null);
+
+  // Application Pipeline Intelligence State
+  const [appOverview, setAppOverview] = useState(null);
+  const [appOverviewLoading, setAppOverviewLoading] = useState(true);
+  const [appOverviewError, setAppOverviewError] = useState(null);
+
   const abortControllerRef = useRef(null);
+
+  // ─── Fetch Career Readiness ───────────────────────────────────────
+  const loadReadiness = useCallback(async (signal) => {
+    if (!token) {
+      setReadiness(null);
+      setReadinessLoading(false);
+      return;
+    }
+
+    setReadinessLoading(true);
+    setReadinessError(null);
+
+    try {
+      const res = await intelligenceApi.getCareerReadiness(token, signal);
+      setReadiness(res.readiness || null);
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      setReadinessError(err.message || 'Unable to load career readiness intelligence.');
+    } finally {
+      setReadinessLoading(false);
+    }
+  }, [token]);
+
+  // ─── Fetch Application Pipeline Intelligence ───────────────────────
+  const loadAppOverview = useCallback(async (signal) => {
+    if (!token) {
+      setAppOverview(null);
+      setAppOverviewLoading(false);
+      return;
+    }
+
+    setAppOverviewLoading(true);
+    setAppOverviewError(null);
+
+    try {
+      const res = await intelligenceApi.getApplicationOverview(token, signal);
+      setAppOverview(res.overview || null);
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      setAppOverviewError(err.message || 'Unable to load application intelligence.');
+    } finally {
+      setAppOverviewLoading(false);
+    }
+  }, [token]);
 
   // ─── Fetch Profile ────────────────────────────────────────────────
   const loadProfile = useCallback(async () => {
@@ -221,19 +280,23 @@ export function DashboardPage() {
 
     loadProfile();
     loadRecentSaved(controller.signal);
+    loadReadiness(controller.signal);
+    loadAppOverview(controller.signal);
 
     return () => controller.abort();
-  }, [loadProfile, loadRecentSaved]);
+  }, [loadProfile, loadRecentSaved, loadReadiness, loadAppOverview]);
 
   // ─── Global Refresh ───────────────────────────────────────────────
   const handleRefreshAll = useCallback(() => {
     loadProfile();
     loadRecentSaved();
+    loadReadiness();
+    loadAppOverview();
     if (refreshApplications) refreshApplications();
     if (refreshSaved) refreshSaved();
     if (refreshCalendar) refreshCalendar();
     if (refreshNotifications) refreshNotifications();
-  }, [loadProfile, loadRecentSaved, refreshApplications, refreshSaved, refreshCalendar, refreshNotifications]);
+  }, [loadProfile, loadRecentSaved, loadReadiness, loadAppOverview, refreshApplications, refreshSaved, refreshCalendar, refreshNotifications]);
 
   // ─── Derived Business Metrics ─────────────────────────────────────
   const applications = Array.from(applicationsMap?.values() || []);
@@ -363,7 +426,7 @@ export function DashboardPage() {
 
       {/* ─── Primary Real Metrics Grid ─────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Metric 1: Profile Status */}
+        {/* Metric 1: Career Readiness */}
         <Link to="/profile" className="block group">
           <Card
             padding="md"
@@ -371,17 +434,17 @@ export function DashboardPage() {
           >
             <div className="min-w-0 pr-2">
               <span className="text-xs font-semibold text-slate-400 uppercase truncate block">
-                Profile Readiness
+                Career Readiness
               </span>
-              <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5">
-                {profileLoading ? '...' : `${profileCompletion}%`}
+              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 mt-0.5 truncate">
+                {readinessLoading ? '...' : (readiness?.readinessBand?.band || 'Early Stage')}
               </div>
-              <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-                {profileCompletion === 100 ? 'All sections filled' : 'Update resume & skills'}
+              <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium truncate block">
+                {readiness?.dimensions ? `${readiness.dimensions.skillCoverage.percentage}% Skill Coverage` : 'Target alignment'}
               </span>
             </div>
             <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-              <User className="w-5 h-5" />
+              <Target className="w-5 h-5" />
             </div>
           </Card>
         </Link>
@@ -460,6 +523,24 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* ─── Left Column (2/3 Width) ─────────────────────────────── */}
         <div className="lg:col-span-2 space-y-6">
+          {/* SECTION 1: CAREER READINESS MISSION CONTROL */}
+          <CareerReadinessCard
+            readiness={readiness}
+            loading={readinessLoading}
+            error={readinessError}
+            onRetry={() => loadReadiness()}
+            showCareerCoach={false}
+          />
+
+          {/* SECTION 1.5: APPLICATION PIPELINE HEALTH */}
+          <ApplicationHealthCard
+            overview={appOverview}
+            loading={appOverviewLoading}
+            error={appOverviewError}
+            onRetry={() => loadAppOverview()}
+            compact
+          />
+
           {/* SECTION B: APPLICATIONS SUMMARY */}
           <Card padding="lg">
             <SectionHeader
@@ -664,13 +745,16 @@ export function DashboardPage() {
 
         {/* ─── Right Column (1/3 Width) ────────────────────────────── */}
         <div className="space-y-6">
-          {/* SECTION A: PROFILE READINESS SUMMARY */}
+          {/* SECTION 0: CONTEXTUAL AI CAREER COPILOT */}
+          <CareerCoachCard contextType="dashboard" />
+
+          {/* SECTION A: PROFILE STRENGTH SUMMARY */}
           <Card padding="lg" className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-indigo-500" />
                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                  Profile Readiness
+                  Profile Strength
                 </h3>
               </div>
               <span className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400">

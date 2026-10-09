@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import assert from 'assert';
 import { AdzunaAdapter } from '../src/services/ingestion/adapters/adzuna.adapter.js';
 import { processOpportunityItem } from '../src/services/ingestion/pipeline.service.js';
-import Opportunity from '../src/models/Opportunity.js';
+import { Opportunity } from '../src/models/Opportunity.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -205,10 +205,13 @@ async function runVerification() {
 
   // Empty page handling
   callCount = 0;
-  global.fetch = async () => ({
-    ok: true, status: 200, headers: new Headers(),
-    text: async () => JSON.stringify({ count: 500, results: [] })
-  });
+  global.fetch = async () => {
+    callCount++;
+    return {
+      ok: true, status: 200, headers: new Headers(),
+      text: async () => JSON.stringify({ count: 500, results: [] })
+    };
+  };
   const emptyResults = await adapter.fetchOpportunities({ limit: 100 });
   assert(callCount === 1, 'Stops paginating if page is empty');
   assert(emptyResults.length === 0, 'Returns empty array safely');
@@ -216,10 +219,13 @@ async function runVerification() {
 
   // Exhausted data handling
   callCount = 0;
-  global.fetch = async () => ({
-    ok: true, status: 200, headers: new Headers(),
-    text: async () => JSON.stringify({ count: 10, results: Array(10).fill({ id: '1' }) })
-  });
+  global.fetch = async () => {
+    callCount++;
+    return {
+      ok: true, status: 200, headers: new Headers(),
+      text: async () => JSON.stringify({ count: 10, results: Array(10).fill({ id: '1' }) })
+    };
+  };
   const smallResults = await adapter.fetchOpportunities({ limit: 100 });
   assert(callCount === 1, 'Stops paginating if total count reached');
   console.log('  ✓ [PASS ' + (++passed) + '] Stops fetching when result set is exhausted before limit');

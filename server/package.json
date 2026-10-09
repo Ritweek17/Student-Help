@@ -41,6 +41,7 @@
     "verify:remotive-adapter": "node scripts/verify-remotive-adapter.js",
     "verify:phase10a": "node scripts/verify-phase10a.js",
     "verify:phase10b": "node scripts/verify-phase10b-auth.js",
+    "verify:redis": "node scripts/verify-redis.js",
     "test": "vitest run",
     "test:auth": "vitest run tests/auth.test.js",
     "test:models": "vitest run tests/models",
@@ -82,8 +83,10 @@
     "express": "^4.21.2",
     "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.9.4"
+    "mongoose": "^9.9.4",
+    "rate-limit-redis": "^6.0.1"
   },
   "devDependencies": {
     "mongodb-memory-server": "^11.3.0",

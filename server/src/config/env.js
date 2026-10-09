@@ -143,6 +143,7 @@ export function validateEnvironment(envSource = process.env) {
     clientUrl,
     trustProxy,
     mongodbUri: envSource.MONGODB_URI,
+    redisUrl: envSource.REDIS_URL?.trim() || null,
     jwtSecret: envSource.JWT_SECRET,
     jwtExpiresIn: envSource.JWT_EXPIRES_IN,
     rateLimit: Object.freeze({

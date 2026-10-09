@@ -2,6 +2,7 @@ import { app } from './app.js';
 import { connectDatabase, disconnectDatabase } from './config/db.js';
 import { env } from './config/env.js';
 import { createGracefulShutdownHandler, setupProcessHandlers } from './utils/shutdown.js';
+import { closeRedisClient } from './middleware/rateLimiter.js';
 
 let server = null;
 let shutdownCoordinator = null;
@@ -12,6 +13,9 @@ export async function shutdown(signal = 'SIGTERM', options = {}) {
   }
   const fallbackHandler = createGracefulShutdownHandler({
     server,
+    onShutdown: async () => {
+      await closeRedisClient();
+    },
     disconnectDb: disconnectDatabase,
     timeoutMs: options.timeoutMs ?? (Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10000),
     exitFn: options.exitFn ?? process.exit,
@@ -28,6 +32,9 @@ export async function startServer(port = env.port, options = {}) {
 
     shutdownCoordinator = createGracefulShutdownHandler({
       server,
+      onShutdown: async () => {
+        await closeRedisClient();
+      },
       disconnectDb: disconnectDatabase,
       timeoutMs: options.timeoutMs ?? (Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10000),
       exitFn: options.exitFn ?? process.exit,

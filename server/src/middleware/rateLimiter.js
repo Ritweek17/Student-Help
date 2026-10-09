@@ -1,5 +1,33 @@
 import rateLimit from 'express-rate-limit';
+import Redis from 'ioredis';
+import RedisStore from 'rate-limit-redis';
 import { env } from '../config/env.js';
+
+export let redisClient = null;
+
+if (env.redisUrl) {
+  redisClient = new Redis(env.redisUrl, {
+    maxRetriesPerRequest: 1,
+    retryStrategy: (times) => Math.min(times * 500, 5000),
+  });
+
+  redisClient.on('error', () => {
+    // Ignore to prevent unhandled exceptions; we handle health/state via client.status
+  });
+}
+
+export async function closeRedisClient() {
+  if (redisClient) {
+    try {
+      await redisClient.quit();
+    } catch {
+      // Force disconnect if graceful quit fails
+      redisClient.disconnect();
+    }
+    redisClient = null;
+  }
+}
+
 
 export const apiLimiter = rateLimit({
   windowMs: env.rateLimit.windowMs,
@@ -48,6 +76,10 @@ export const aiMinuteLimiter = rateLimit({
   standardHeaders: false,
   legacyHeaders: false,
   validate: false,
+  store: redisClient ? new RedisStore({
+    sendCommand: (...args) => redisClient.call(...args),
+    prefix: 'rl:ai_min:',
+  }) : undefined,
   keyGenerator: (req) => {
     return req.auth?.userId || req.ip;
   },
@@ -69,6 +101,10 @@ export const aiDailyLimiter = rateLimit({
   standardHeaders: false,
   legacyHeaders: false,
   validate: false,
+  store: redisClient ? new RedisStore({
+    sendCommand: (...args) => redisClient.call(...args),
+    prefix: 'rl:ai_daily:',
+  }) : undefined,
   keyGenerator: (req) => {
     return req.auth?.userId || req.ip;
   },
@@ -83,11 +119,46 @@ export const aiDailyLimiter = rateLimit({
 
 /**
  * Combined AI rate limiter enforcing both daily quota and per-minute constraints.
+ * Strictly prevents fallback to memory in production if Redis is unavailable.
  */
 export function aiLimiter(req, res, next) {
+  const isProduction = env.nodeEnv === 'production';
+
+  // Strict production guard: Fail if Redis is not configured or unavailable
+  if (isProduction) {
+    if (!redisClient || redisClient.status !== 'ready') {
+      return res.status(503).json({
+        ok: false,
+        category: 'rate_limit_store_unavailable',
+        message: 'Service temporarily unavailable.',
+      });
+    }
+  }
+
   aiDailyLimiter(req, res, (dailyErr) => {
-    if (dailyErr) return next(dailyErr);
-    aiMinuteLimiter(req, res, next);
+    if (dailyErr) {
+      if (isProduction) {
+        return res.status(503).json({
+          ok: false,
+          category: 'rate_limit_store_unavailable',
+          message: 'Service temporarily unavailable.',
+        });
+      }
+      return next(dailyErr);
+    }
+    aiMinuteLimiter(req, res, (minErr) => {
+      if (minErr) {
+        if (isProduction) {
+          return res.status(503).json({
+            ok: false,
+            category: 'rate_limit_store_unavailable',
+            message: 'Service temporarily unavailable.',
+          });
+        }
+        return next(minErr);
+      }
+      next();
+    });
   });
 }
 

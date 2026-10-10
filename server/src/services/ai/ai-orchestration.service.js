@@ -1,19 +1,15 @@
 /**
- * CareerOS AI Orchestration Service (Phase 11H — B3)
+ * CareerOS AI Orchestration Service (Phase 11H — B3, Refactored 11I — B3.2A)
  *
- * Coordinates the execution of AI career coaching:
- * 1. Resolves authoritative TrustedAIContextV1 via career-context.service.js.
- * 2. Assembles versioned prompt envelope (career-coach.v1).
- * 3. Dispatches to provider with bounded timeout and single retry.
- * 4. Validates transport, JSON, schema, safety, and grounding.
- * 5. Returns safe typed result or machine-safe deterministic fallback.
+ * Coordinates the execution of AI capabilities:
+ * 1. Shared generic `orchestrateAI` core for timeout, retry, validation, and telemetry.
+ * 2. Backward-compatible `orchestrateCareerCoach` wrapping the core.
  *
  * Guarantees:
  * - Deterministic CareerOS intelligence is never duplicated or modified.
  * - Client cannot override trusted context, scores, or skill gaps.
  * - Non-causal rules and safety contracts are strictly enforced.
  * - Defense-in-depth prompt injection controls are applied across boundaries.
- *   No single layer guarantees prompt-injection immunity.
  * - Telemetry is sanitized (no PII, no raw prompts, no raw models responses logged).
  */
 
@@ -58,7 +54,7 @@ export function logAITelemetry(telemetry) {
     success: Boolean(telemetry.success),
     category: telemetry.category || (telemetry.success ? 'success' : 'failure'),
     retriesAttempted: telemetry.retriesAttempted || 0,
-    promptVersion: telemetry.promptVersion || PROMPT_VERSION,
+    promptVersion: telemetry.promptVersion || 'unknown',
   };
 
   // Structured telemetry output
@@ -71,6 +67,163 @@ export function logAITelemetry(telemetry) {
   }
 
   return safeLog;
+}
+
+/**
+ * Generic AI Orchestration Core (Phase 11I - B3.2A)
+ *
+ * Provides shared timeout, retry, telemetry, and validation logic
+ * without coupling to specific operation prompts or schemas.
+ *
+ * @param {Object} operation - Trusted server-side operation contract
+ * @param {Function} operation.buildPrompt - Returns { systemPrompt, userPrompt, responseSchema }
+ * @param {Function} operation.validateOutput - (response, schema) => { valid, data, reason, error }
+ * @param {Function} [operation.generateFallback] - (reason) => fallbackData (Optional)
+ * @param {string} [operation.promptVersion] - Version tag for telemetry
+ * @param {Object} [operation.context] - Trusted context to pass to provider for telemetry/mock tracking
+ * @param {import('./llm-provider.interface.js').LLMProvider} [operation.provider] - Injected provider
+ * @param {Object} [operation.options] - Execution options (timeoutMs, requestId)
+ */
+export async function orchestrateAI(operation) {
+  const startTime = Date.now();
+  const requestId = operation.options?.requestId || crypto.randomUUID();
+  const timeoutMs = typeof operation.options?.timeoutMs === 'number'
+    ? operation.options.timeoutMs
+    : DEFAULT_AI_TIMEOUT_MS;
+
+  // Helper to handle standardized failure returns
+  const handleFailure = (category, retriesAttempted = 0, providerName = 'unknown', modelName = 'unknown', errorDetails = null) => {
+    const telemetry = logAITelemetry({
+      requestId,
+      provider: providerName,
+      model: modelName,
+      latencyMs: Date.now() - startTime,
+      success: false,
+      category,
+      retriesAttempted,
+      promptVersion: operation.promptVersion,
+    });
+
+    if (typeof operation.generateFallback === 'function') {
+      return {
+        ok: false,
+        source: 'deterministic_fallback',
+        reason: category,
+        fallbackData: operation.generateFallback(category),
+        telemetry,
+      };
+    }
+
+    return {
+      ok: false,
+      source: 'error',
+      reason: category,
+      error: errorDetails,
+      telemetry,
+    };
+  };
+
+  // 1. Resolve Provider
+  let provider;
+  try {
+    provider = operation.provider || getAIProvider(operation.options);
+  } catch (err) {
+    const category = err.category || FALLBACK_REASONS.PROVIDER_UNAVAILABLE;
+    return handleFailure(category, 0, err.provider, 'unknown', err);
+  }
+
+  // 2. Build Prompt Envelope
+  let promptEnvelope;
+  try {
+    promptEnvelope = operation.buildPrompt();
+  } catch (err) {
+    return handleFailure('prompt_generation_failed', 0, provider.name, provider.model, err);
+  }
+
+  // 3. Bounded Invocation with Single Retry
+  let providerResponse = null;
+  let retriesAttempted = 0;
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= MAX_AI_RETRIES; attempt++) {
+    let isTimeout = false;
+    const abortController = new AbortController();
+    const timer = setTimeout(() => {
+      isTimeout = true;
+      abortController.abort();
+    }, timeoutMs);
+
+    try {
+      providerResponse = await provider.generateStructuredResponse({
+        systemPrompt: promptEnvelope.systemPrompt,
+        userPrompt: promptEnvelope.userPrompt,
+        responseSchema: promptEnvelope.responseSchema,
+        context: operation.context,
+        requestId,
+        timeoutMs,
+        signal: abortController.signal,
+      });
+      clearTimeout(timer);
+      break; // Success on this attempt
+    } catch (err) {
+      clearTimeout(timer);
+      if (isTimeout || err?.name === 'LLMTimeoutError' || err?.category === 'provider_timeout') {
+        lastError = new LLMTimeoutError(`Request timed out after ${timeoutMs}ms`, {
+          provider: provider.name,
+        });
+      } else {
+        lastError = err;
+      }
+
+      // Retry once if error is marked retryable or transient network/timeout
+      const isRetryable = lastError?.isRetryable || lastError?.name === 'LLMTimeoutError';
+      if (attempt < MAX_AI_RETRIES && isRetryable) {
+        retriesAttempted++;
+        continue;
+      }
+      break;
+    }
+  }
+
+  // 4. Check Provider Errors
+  if (!providerResponse) {
+    let failureCategory = FALLBACK_REASONS.PROVIDER_ERROR;
+    if (lastError?.name === 'LLMTimeoutError' || lastError?.category === 'provider_timeout') {
+      failureCategory = FALLBACK_REASONS.PROVIDER_TIMEOUT;
+    } else if (lastError?.category === 'quota_exceeded') {
+      failureCategory = FALLBACK_REASONS.QUOTA_EXCEEDED;
+    } else if (lastError?.category === 'provider_unavailable') {
+      failureCategory = FALLBACK_REASONS.PROVIDER_UNAVAILABLE;
+    }
+
+    return handleFailure(failureCategory, retriesAttempted, provider.name, provider.model, lastError);
+  }
+
+  // 5. Output Validation Pipeline
+  const validation = operation.validateOutput(providerResponse, promptEnvelope.responseSchema);
+
+  if (!validation.valid) {
+    return handleFailure(validation.reason || FALLBACK_REASONS.SCHEMA_INVALID, retriesAttempted, provider.name, provider.model, validation.error);
+  }
+
+  // 6. Successful Response
+  const telemetry = logAITelemetry({
+    requestId,
+    provider: provider.name,
+    model: provider.model,
+    latencyMs: Date.now() - startTime,
+    success: true,
+    category: 'success',
+    retriesAttempted,
+    promptVersion: operation.promptVersion,
+  });
+
+  return {
+    ok: true,
+    source: 'ai',
+    data: validation.data,
+    telemetry,
+  };
 }
 
 /**
@@ -128,6 +281,7 @@ export function generateDeterministicFallback(context = {}, reason = 'provider_e
 
 /**
  * Orchestrates Career Coach AI guidance with grounding and safety enforcement.
+ * Maintained as a backward-compatible wrapper around the shared core.
  *
  * @param {Object} params
  * @param {string|Object} [params.userId] - Authenticated user ID (ownership-enforced)
@@ -139,47 +293,9 @@ export function generateDeterministicFallback(context = {}, reason = 'provider_e
  * @param {string} [params.options.requestId]
  * @param {Date} [params.options.referenceDate]
  * @param {string} [params.options.opportunityId]
- * @returns {Promise<{
- *   ok: boolean,
- *   source: 'ai' | 'deterministic_fallback',
- *   data?: Object,
- *   reason?: string,
- *   fallbackData?: Object,
- *   telemetry: Object
- * }>}
  */
 export async function orchestrateCareerCoach(params = {}) {
-  const startTime = Date.now();
-  const requestId = params.options?.requestId || crypto.randomUUID();
-  const timeoutMs = typeof params.options?.timeoutMs === 'number'
-    ? params.options.timeoutMs
-    : DEFAULT_AI_TIMEOUT_MS;
-
-  // 1. Resolve Provider
-  let provider;
-  try {
-    provider = params.provider || getAIProvider(params.options);
-  } catch (err) {
-    const category = err.category || FALLBACK_REASONS.PROVIDER_UNAVAILABLE;
-    const fallback = generateDeterministicFallback(params.preloadedContext, category);
-    const telemetry = logAITelemetry({
-      requestId,
-      provider: err.provider || 'unknown',
-      latencyMs: Date.now() - startTime,
-      success: false,
-      category,
-    });
-    return {
-      ok: false,
-      source: 'deterministic_fallback',
-      reason: category,
-      fallbackData: fallback,
-      telemetry,
-    };
-  }
-
-  // 2. Resolve Authoritative Trusted Context
-  // Context MUST come from career-context.service.js. Never trust client-provided scores or skill gaps.
+  // 1. Resolve Authoritative Trusted Context early for fallback and prompt
   let trustedContext;
   try {
     if (params.preloadedContext && typeof params.preloadedContext === 'object' && params.preloadedContext.version === '1') {
@@ -193,14 +309,16 @@ export async function orchestrateCareerCoach(params = {}) {
       trustedContext = buildTrustedAIContext({}, params.options);
     }
   } catch {
+    // If context fetch fails before orchestration can start, we must manually trigger the fallback.
     const fallback = generateDeterministicFallback({}, FALLBACK_REASONS.CONTEXT_RETRIEVAL_FAILED);
     const telemetry = logAITelemetry({
-      requestId,
-      provider: provider.name,
-      model: provider.model,
-      latencyMs: Date.now() - startTime,
+      requestId: params.options?.requestId || crypto.randomUUID(),
+      provider: params.provider?.name || 'unknown',
+      model: params.provider?.model || 'unknown',
+      latencyMs: 0,
       success: false,
       category: FALLBACK_REASONS.CONTEXT_RETRIEVAL_FAILED,
+      promptVersion: PROMPT_VERSION,
     });
     return {
       ok: false,
@@ -211,132 +329,17 @@ export async function orchestrateCareerCoach(params = {}) {
     };
   }
 
-  // 3. Assemble Versioned Prompt Envelope
-  const promptEnvelope = buildCareerCoachPromptV1({
+  // 2. Delegate to generic orchestration core
+  return orchestrateAI({
+    provider: params.provider,
+    options: params.options,
+    promptVersion: PROMPT_VERSION,
     context: trustedContext,
-    userQuery: params.userQuery,
+    buildPrompt: () => buildCareerCoachPromptV1({
+      context: trustedContext,
+      userQuery: params.userQuery,
+    }),
+    validateOutput: (providerResponse, schema) => validateAIOutputPipeline(providerResponse, schema, trustedContext),
+    generateFallback: (reason) => generateDeterministicFallback(trustedContext, reason)
   });
-
-  // 4. Bounded Invocation with Single Retry
-  let providerResponse = null;
-  let retriesAttempted = 0;
-  let lastError = null;
-
-  for (let attempt = 0; attempt <= MAX_AI_RETRIES; attempt++) {
-    let isTimeout = false;
-    const abortController = new AbortController();
-    const timer = setTimeout(() => {
-      isTimeout = true;
-      abortController.abort();
-    }, timeoutMs);
-
-    try {
-      providerResponse = await provider.generateStructuredResponse({
-        systemPrompt: promptEnvelope.systemPrompt,
-        userPrompt: promptEnvelope.userPrompt,
-        context: trustedContext,
-        responseSchema: promptEnvelope.responseSchema,
-        requestId,
-        timeoutMs,
-        signal: abortController.signal,
-      });
-      clearTimeout(timer);
-      break; // Success on this attempt
-    } catch (err) {
-      clearTimeout(timer);
-      if (isTimeout || err?.name === 'LLMTimeoutError' || err?.category === 'provider_timeout') {
-        lastError = new LLMTimeoutError(`Request timed out after ${timeoutMs}ms`, {
-          provider: provider.name,
-        });
-      } else {
-        lastError = err;
-      }
-
-      // Retry once if error is marked retryable or transient network/timeout
-      const isRetryable = lastError?.isRetryable || lastError?.name === 'LLMTimeoutError';
-      if (attempt < MAX_AI_RETRIES && isRetryable) {
-        retriesAttempted++;
-        continue;
-      }
-      break;
-    }
-  }
-
-  // 5. Check Provider Errors
-  if (!providerResponse) {
-    let failureCategory = FALLBACK_REASONS.PROVIDER_ERROR;
-    if (lastError?.name === 'LLMTimeoutError' || lastError?.category === 'provider_timeout') {
-      failureCategory = FALLBACK_REASONS.PROVIDER_TIMEOUT;
-    } else if (lastError?.category === 'quota_exceeded') {
-      failureCategory = FALLBACK_REASONS.QUOTA_EXCEEDED;
-    } else if (lastError?.category === 'provider_unavailable') {
-      failureCategory = FALLBACK_REASONS.PROVIDER_UNAVAILABLE;
-    }
-
-    const fallback = generateDeterministicFallback(trustedContext, failureCategory);
-    const telemetry = logAITelemetry({
-      requestId,
-      provider: provider.name,
-      model: provider.model,
-      latencyMs: Date.now() - startTime,
-      success: false,
-      category: failureCategory,
-      retriesAttempted,
-    });
-
-    return {
-      ok: false,
-      source: 'deterministic_fallback',
-      reason: failureCategory,
-      fallbackData: fallback,
-      telemetry,
-    };
-  }
-
-  // 6. Output Validation Pipeline (Transport -> JSON -> Schema -> Safety -> Grounding)
-  const validation = validateAIOutputPipeline(
-    providerResponse,
-    promptEnvelope.responseSchema,
-    trustedContext
-  );
-
-  if (!validation.valid) {
-    const fallback = generateDeterministicFallback(trustedContext, validation.reason);
-    const telemetry = logAITelemetry({
-      requestId,
-      provider: provider.name,
-      model: provider.model,
-      latencyMs: Date.now() - startTime,
-      success: false,
-      category: validation.reason,
-      retriesAttempted,
-    });
-
-    return {
-      ok: false,
-      source: 'deterministic_fallback',
-      reason: validation.reason,
-      fallbackData: fallback,
-      telemetry,
-    };
-  }
-
-  // 7. Successful Grounded Response
-  const latencyMs = Date.now() - startTime;
-  const telemetry = logAITelemetry({
-    requestId,
-    provider: provider.name,
-    model: provider.model,
-    latencyMs,
-    success: true,
-    category: 'success',
-    retriesAttempted,
-  });
-
-  return {
-    ok: true,
-    source: 'ai',
-    data: validation.data,
-    telemetry,
-  };
 }

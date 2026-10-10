@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import * as matchService from '../services/intelligence/match.service.js';
 import * as careerReadinessService from '../services/intelligence/career-readiness.service.js';
 import { calculateApplicationIntelligence } from '../services/intelligence/application-intelligence.service.js';
+import { startInterviewGeneration } from '../services/intelligence/interview.service.js';
 
 /**
  * GET /api/intelligence/opportunities/:id/match
@@ -427,3 +428,41 @@ export async function executeApplicationFollowUps(request, response, next) {
   }
 }
 
+/**
+ * POST /api/intelligence/interview/start
+ * 
+ * Initiates a new Interview Preparation V1 session.
+ * Authenticates user, verifies application ownership/eligibility, and returns a signed question envelope.
+ */
+export async function startInterview(request, response, next) {
+  try {
+    const userId = request.auth.userId;
+    const applicationId = request.body?.applicationId;
+
+    if (!applicationId || !mongoose.Types.ObjectId.isValid(applicationId)) {
+      return response.status(400).json({
+        success: false,
+        message: 'Invalid application ID',
+      });
+    }
+
+    const { envelope, questions } = await startInterviewGeneration(userId, applicationId);
+
+    return response.status(200).json({
+      success: true,
+      envelope,
+      questions,
+    });
+  } catch (error) {
+    if (error.status === 400) {
+      return response.status(400).json({ success: false, message: error.message });
+    }
+    if (error.status === 404) {
+      return response.status(404).json({ success: false, message: error.message });
+    }
+    if (error.status === 503) {
+      return response.status(503).json({ success: false, message: error.message });
+    }
+    return next(error);
+  }
+}

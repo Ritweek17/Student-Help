@@ -10,6 +10,7 @@ import {
   getApplicationOverview,
   getApplicationOutcomes,
   executeApplicationFollowUps,
+  startInterview,
 } from '../controllers/intelligence.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 import { githubSyncLimiter } from '../middleware/rateLimiter.js';
@@ -65,3 +66,9 @@ intelligenceRouter.get('/github/evidence', getGitHubEvidence);
 intelligenceRouter.delete('/github/disconnect', disconnectGitHubEvidence);
 
 
+// -------------------------------------------------------------
+// Interview Preparation V1 (Phase 11I)
+// -------------------------------------------------------------
+
+// POST /api/intelligence/interview/start (Initiate interview session)
+intelligenceRouter.post('/interview/start', startInterview);
